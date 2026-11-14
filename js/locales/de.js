@@ -57,6 +57,10 @@ export default {
   'set.repsAria': 'Wiederholungen, Satz {n}',
   'set.deleteAria': 'Satz {n} löschen',
 
+  'wheel.clear': '{value} entfernen',
+  'wheel.kg': 'Kilogramm',
+  'wheel.fraction': 'Nachkommastellen',
+
   'card.stats': 'Logbuch der Übung öffnen',
   'card.up': 'Nach oben schieben',
   'card.down': 'Nach unten schieben',

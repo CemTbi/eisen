@@ -436,6 +436,44 @@ input[type="date"].field { min-width: 0; text-align: left; }
 }
 .num::placeholder { color: var(--text-3); font-weight: 500; opacity: 1; }
 .num:focus { border-color: var(--accent); background: var(--surface-3); }
+.num-btn { display: block; }
+.num-btn.hint { color: var(--text-3); font-weight: 500; }
+.num-btn:active { background: var(--surface-3); }
+
+/* Weight wheel: five rows high, the middle row is the selection. */
+.wheel { position: relative; display: flex; justify-content: center; align-items: center; gap: 4px; height: 220px; margin: 4px 0 12px; }
+.wheel-band { position: absolute; top: 88px; right: 0; left: 0; height: 44px; border-radius: 12px; background: var(--surface-2); }
+.wheel-col {
+  position: relative;
+  width: 96px;
+  height: 220px;
+  padding: 88px 0;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+}
+.wheel-col::-webkit-scrollbar { display: none; }
+.wheel-col { text-align: right; }
+.wheel-col + .wheel-col { width: 72px; text-align: left; }
+.wheel-item {
+  height: 44px;
+  padding: 0 10px;
+  color: var(--text-2);
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 44px;
+  scroll-snap-align: center;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.wheel-item.on { color: var(--text); font-weight: 750; }
+.wheel-unit { position: relative; color: var(--text-2); font-size: 17px; font-weight: 600; }
+
 .set-del { display: grid; place-items: center; width: 100%; height: 40px; color: var(--text-3); }
 
 /* ---- logbook ------------------------------------------------------------------------ */

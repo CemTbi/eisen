@@ -56,6 +56,10 @@ export default {
   'set.repsAria': 'Reps, set {n}',
   'set.deleteAria': 'Delete set {n}',
 
+  'wheel.clear': 'Remove {value}',
+  'wheel.kg': 'Kilograms',
+  'wheel.fraction': 'Decimals',
+
   'card.stats': 'Open exercise logbook',
   'card.up': 'Move up',
   'card.down': 'Move down',

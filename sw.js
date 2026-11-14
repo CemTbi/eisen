@@ -1,7 +1,7 @@
 // Offline support: the app shell is cached on install and served from cache.
 // Every request is revalidated in the background, so a new version is picked
 // up on the launch after it was published.
-const CACHE = 'eisen-v2';
+const CACHE = 'eisen-v3';
 
 const ASSETS = [
   './',
@@ -25,6 +25,7 @@ const ASSETS = [
   'js/store.js',
   'js/ui.js',
   'js/util.js',
+  'js/wheel.js',
   'js/locales/de.js',
   'js/locales/en.js',
   'js/views/entry.js',

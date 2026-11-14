@@ -14,6 +14,7 @@ Server und kein Konto, und läuft nach der Installation offline. Alle Daten blei
   starten und ist dann mit dessen Werten vorausgefüllt.
 - **Fortschritt**: letztes Gewicht und Bestwert pro Übung, Diagramme für Gewicht, geschätztes 1RM
   und Volumen, Bestwerte werden markiert.
+- **Gewichtsrad**: Gewichte werden auf einem Rad eingestellt (ganze Kilo und Viertelschritte).
 - **Sprache und Design**: Deutsch und Englisch, Designs „Midnight“ und „Schwarz“ (Einstellungen).
 - **Backup**: Export und Import als JSON-Datei.
 

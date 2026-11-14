@@ -106,6 +106,16 @@ try {
   const button = (name) => page.getByRole('button', { name, exact: true });
   const weight = (set, exercise) => page.getByLabel(`Gewicht in kg, Satz ${set}, ${exercise}`, { exact: true });
   const reps = (set, exercise) => page.getByLabel(`Wiederholungen, Satz ${set}, ${exercise}`, { exact: true });
+  // Sets a weight on the wheel: open it, turn both columns, confirm.
+  const spin = async (field, value) => {
+    await field.click();
+    const columns = page.locator('.wheel-col');
+    await columns.first().waitFor();
+    await columns.nth(0).evaluate((el, index) => { el.scrollTop = index * 44; }, Math.floor(value));
+    await columns.nth(1).evaluate((el, index) => { el.scrollTop = index * 44; }, Math.round((value % 1) * 4));
+    await page.getByRole('dialog').getByRole('button', { name: 'Fertig', exact: true }).click();
+    await columns.first().waitFor({ state: 'hidden' });
+  };
   const tab = (name) => page.locator('.tabbar').getByRole('button', { name });
   const goBack = () => page.locator('.topbar-back').click();
   const exerciseRow = (name) => page.locator('.row').filter({ has: page.getByText(name, { exact: true }) });
@@ -141,9 +151,17 @@ try {
     await shot('02-picker');
     await button('Hinzufügen (2)').click();
     await see(weight(3, RAISE));
-    await weight(1, BENCH).fill('60');
+    await spin(weight(1, BENCH), 60);
+    assert.equal(await weight(1, BENCH).textContent(), '60');
+    await weight(2, BENCH).click(); // an empty set opens the wheel where the set above stands
+    await page.locator('.wheel-item.on').first().waitFor();
+    assert.deepEqual(await page.locator('.wheel-item.on').allTextContents(), ['60', ',00']);
+    await shot('03-wheel');
+    await button('Abbrechen').click();
+    await page.locator('.wheel-col').first().waitFor({ state: 'hidden' });
     await reps(1, BENCH).fill('8');
-    assert.equal(await weight(2, BENCH).getAttribute('placeholder'), '60', 'an empty set means "same as above"');
+    assert.equal(await weight(2, BENCH).textContent(), '60', 'an empty set means "same as above"');
+    assert.match(await weight(2, BENCH).getAttribute('class'), /hint/);
     assert.equal(await reps(3, BENCH).getAttribute('placeholder'), '8');
     await button(`Satz 3 löschen, ${RAISE}`).click();
     await weight(3, RAISE).waitFor({ state: 'hidden' });
@@ -167,16 +185,17 @@ try {
     await page.locator('.ex-card', { hasText: BENCH }).getByRole('button', { name: 'Ins Logbuch' }).click();
     await see(heading(BENCH));
     await see('Vorausgefüllt mit den Werten aus deinem Plan. Passe an, was du wirklich geschafft hast.');
-    assert.equal(await weight(3, BENCH).inputValue(), '60');
+    assert.equal(await weight(3, BENCH).textContent(), '60');
     assert.equal(await reps(3, BENCH).inputValue(), '8');
-    await weight(2, BENCH).fill('62,5');
+    await spin(weight(2, BENCH), 62.5);
+    assert.equal(await weight(2, BENCH).textContent(), '62,5');
     await reps(2, BENCH).fill('7');
     await button(`Satz 3 löschen, ${BENCH}`).click();
     await shot('04-entry');
     await button('Eintrag speichern').click();
     await see('Eintrag gespeichert');
     await see(page.locator('.topbar-title', { hasText: 'Plan' }));
-    assert.equal(await weight(2, BENCH).inputValue(), '', 'logging does not change the plan');
+    assert.match(await weight(2, BENCH).getAttribute('class'), /hint/, 'logging does not change the plan');
     await goBack();
     await see(heading('Trainingsplan'));
   });
@@ -197,9 +216,12 @@ try {
   await step('adds an old personal record by hand, with its date', async () => {
     await button('Eintrag hinzufügen').click();
     await page.getByText('Vorausgefüllt mit deinem letzten Eintrag', { exact: false }).waitFor();
-    assert.equal(await weight(2, BENCH).inputValue(), '62,5');
+    assert.equal(await weight(2, BENCH).textContent(), '62,5');
     await page.getByLabel('Datum').fill('2024-05-01');
-    await weight(1, BENCH).fill('100');
+    await spin(weight(1, BENCH), 100);
+    await weight(2, BENCH).click(); // a set with a value can be cleared again
+    await button('62,5 kg entfernen').click();
+    assert.equal(await weight(2, BENCH).textContent(), '–');
     await reps(1, BENCH).fill('1');
     await button(`Satz 2 löschen, ${BENCH}`).click();
     await button('Speichern').click();
@@ -213,7 +235,7 @@ try {
 
   await step('a heavier entry is flagged as a record; entries can be edited and deleted', async () => {
     await button('Eintrag hinzufügen').click();
-    await weight(1, BENCH).fill('105');
+    await spin(weight(1, BENCH), 105);
     await reps(1, BENCH).fill('1');
     await button(`Satz 2 löschen, ${BENCH}`).click();
     await button('Eintrag speichern').click();
@@ -224,16 +246,16 @@ try {
     await entries().first().click();
     await see(heading(BENCH));
     await see('Eintrag bearbeiten');
-    await weight(1, BENCH).fill('106');
+    await spin(weight(1, BENCH), 106.25);
     await button('Speichern').click();
-    await see('106 kg × 1');
+    await see('106,25 kg × 1');
 
     await entries().first().click();
     await button('Eintrag löschen').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Eintrag löschen' }).click();
     await see('Eintrag gelöscht');
     assert.equal(await entries().count(), 2);
-    assert.equal(await page.getByText('106 kg × 1').count(), 0);
+    assert.equal(await page.getByText('106,25 kg × 1').count(), 0);
   });
 
   await step('an entry needs at least one set with reps; cancelling keeps nothing', async () => {
@@ -303,7 +325,7 @@ try {
     await exerciseRow('Bench press (barbell)').click();
     await see('Heaviest weight');
     await button('Add entry').click();
-    assert.equal(await page.getByLabel('Weight in kg, set 2, Bench press (barbell)').inputValue(), '62.5');
+    assert.equal(await page.getByLabel('Weight in kg, set 2, Bench press (barbell)').textContent(), '62.5');
     await shot('05-english');
     await goBack();
     await see('Heaviest weight');

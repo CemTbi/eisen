@@ -2,7 +2,7 @@
 
 import { getLang, locale, t } from './i18n.js';
 
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';
 export const DAY = 86_400_000;
 
 /**

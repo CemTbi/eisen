@@ -10,7 +10,8 @@ import { navigate } from './router.js';
 import { placeholders } from './stats.js';
 import { getExercise } from './store.js';
 import { actionSheet } from './ui.js';
-import { fmtInput, h, icon, parseReps, parseWeight } from './util.js';
+import { fmtInput, h, icon, parseReps } from './util.js';
+import { pickWeight } from './wheel.js';
 
 export const blankSet = () => ({ weight: null, reps: null });
 
@@ -24,20 +25,46 @@ export function setTable({ sets, name, changed, rerender, hints = false }) {
     if (!hints) return;
     const values = placeholders(sets, null);
     rows.forEach((row, i) => {
-      row.weight.placeholder = fmtInput(values[i].weight);
+      row.paintWeight(values[i].weight);
       row.reps.placeholder = fmtInput(values[i].reps);
     });
+  };
+
+  // The weight is chosen on a wheel. The button shows the value, or in grey
+  // the value an empty set inherits from the one above.
+  const weightField = (set, i) => {
+    let hint = null;
+    const button = h('button', {
+      class: 'num num-btn',
+      'aria-label': `${t('set.weightAria', { n: i + 1 })}, ${name}`,
+      onclick: async () => {
+        const start = hint ?? sets.slice(0, i).findLast((s) => s.weight != null)?.weight;
+        const picked = await pickWeight({ title: `${name} · ${t('set.header')} ${i + 1}`, value: set.weight, start });
+        if (picked === undefined) return;
+        set.weight = picked;
+        changed();
+        paint(hint);
+        refreshHints();
+      },
+    });
+    const paint = (inherited) => {
+      hint = inherited ?? null;
+      button.textContent = fmtInput(set.weight ?? hint) || '–';
+      button.classList.toggle('hint', set.weight == null);
+    };
+    paint(null);
+    return { button, paint };
   };
 
   const numberField = (set, i, key) => h('input', {
     class: 'num',
     type: 'text',
-    inputmode: key === 'weight' ? 'decimal' : 'numeric',
+    inputmode: 'numeric',
     autocomplete: 'off',
     enterkeyhint: 'done',
-    maxLength: 7,
+    maxLength: 4,
     value: fmtInput(set[key]),
-    'aria-label': `${t(key === 'weight' ? 'set.weightAria' : 'set.repsAria', { n: i + 1 })}, ${name}`,
+    'aria-label': `${t('set.repsAria', { n: i + 1 })}, ${name}`,
     onfocus: (event) => {
       const input = event.target;
       setTimeout(() => {
@@ -45,7 +72,7 @@ export function setTable({ sets, name, changed, rerender, hints = false }) {
       }, 0);
     },
     oninput: (event) => {
-      set[key] = key === 'weight' ? parseWeight(event.target.value) : parseReps(event.target.value);
+      set[key] = parseReps(event.target.value);
       changed();
       refreshHints();
     },
@@ -55,14 +82,14 @@ export function setTable({ sets, name, changed, rerender, hints = false }) {
   });
 
   sets.forEach((set, i) => {
-    const weight = numberField(set, i, 'weight');
+    const weight = weightField(set, i);
     const reps = numberField(set, i, 'reps');
     rows.push({
-      weight,
+      paintWeight: weight.paint,
       reps,
       el: h('div', { class: 'set-row' },
         h('span', { class: 'set-no' }, String(i + 1)),
-        weight,
+        weight.button,
         reps,
         h('button', {
           class: 'set-del',
