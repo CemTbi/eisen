@@ -1,6 +1,7 @@
 // Exercise picker and the form for creating or editing an exercise.
 
 import { chips, field } from './components.js';
+import { muscleFigure, musclesOf } from './figure.js';
 import { t } from './i18n.js';
 import { MUSCLES } from './library.js';
 import { MAX_NAME, cleanName } from './model.js';
@@ -9,6 +10,12 @@ import { openSheet, toast } from './ui.js';
 import { fold, h, icon, setChildren } from './util.js';
 
 export const muscleName = (key) => t(`muscle.${key}`);
+
+function thumb(exercise) {
+  const figure = muscleFigure(musclesOf(exercise), '');
+  figure.setAttribute('aria-hidden', 'true');
+  return figure;
+}
 
 /**
  * Lets the user choose exercises. Resolves with an array of exercise ids in
@@ -75,6 +82,7 @@ export function pickExercises({ title = t('picker.title'), multiple = true } = {
             'aria-pressed': String(selected.has(exercise.id)),
             onclick: () => choose(exercise, row),
           },
+            thumb(exercise),
             h('span', { class: 'row-main' },
               h('span', { class: 'row-title' }, exercise.name),
               h('span', { class: 'meta' }, muscleName(exercise.muscle))),

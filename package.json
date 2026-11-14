@@ -1,6 +1,6 @@
 {
   "name": "eisen",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Schlankes Trainingslogbuch als installierbare Web-App",
   "private": true,
   "type": "module",

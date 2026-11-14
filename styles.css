@@ -487,6 +487,21 @@ input[type="date"].field { min-width: 0; text-align: left; }
 .set-index { width: 22px; color: var(--text-3); font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 .set-value { flex: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* ---- exercise picture ---------------------------------------------------------------- */
+
+.fig { display: block; }
+.fig-part { fill: var(--surface-3); }
+.fig-part.primary { fill: var(--accent); }
+.fig-part.secondary { fill: var(--accent); fill-opacity: 0.4; }
+.row .fig { flex: none; width: 46px; height: 46px; }
+.muscle-card { display: flex; align-items: center; gap: 16px; }
+.muscle-card .fig { flex: none; width: 150px; height: 150px; }
+.muscle-legend { display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+.muscle-legend > div { display: flex; flex-direction: column; gap: 2px; }
+.legend-key { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.legend-key::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+.legend-key.secondary::before { opacity: 0.4; }
+
 /* ---- chart ------------------------------------------------------------------------------ */
 
 .chart-card > * + * { margin-top: 12px; }
