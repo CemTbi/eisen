@@ -1,97 +1,32 @@
-// The set table: one card per exercise with a row per set. Shared by the
-// workout in progress ('active'), the plan editor ('routine') and the editor
-// for a logged workout ('workout').
+// The set table: rows of weight and reps. Used by the plan editor (one card
+// per exercise) and by the logbook entry page.
 //
-// ctx = { mode, items, changed(), rerender(), onSetDone?(), onValues?() }
-// Typing never redraws the view (that would close the keyboard); only
-// structural changes call ctx.rerender().
+// Typing never redraws the view (that would close the keyboard); only adding
+// or removing rows calls rerender().
 
+import { t } from './i18n.js';
 import { pickExercises } from './picker.js';
-import { primeAudio } from './rest.js';
 import { navigate } from './router.js';
-import { lastSets, placeholders } from './stats.js';
-import { getExercise, state } from './store.js';
-import { actionSheet, toast } from './ui.js';
-import { fmtInput, fmtNum, h, icon, parseReps, parseWeight } from './util.js';
+import { placeholders } from './stats.js';
+import { getExercise } from './store.js';
+import { actionSheet } from './ui.js';
+import { fmtInput, h, icon, parseReps, parseWeight } from './util.js';
 
-const blankSet = (mode) => (mode === 'active'
-  ? { weight: null, reps: null, done: false, tw: null, tr: null }
-  : { weight: null, reps: null });
+export const blankSet = () => ({ weight: null, reps: null });
 
-const fmtPrevious = (set) => (set.weight > 0 ? `${fmtNum(set.weight)} × ${set.reps}` : `${set.reps} Wdh.`);
-
-/** Opens the picker and appends the chosen exercises. */
-export async function addExercises(ctx) {
-  const ids = await pickExercises();
-  if (!ids?.length) return;
-  for (const id of ids) {
-    // In a workout, start with as many sets as last time.
-    const count = ctx.mode === 'workout' ? 1 : (ctx.mode === 'active' && lastSets(state.data.workouts, id)?.length) || 3;
-    ctx.items.push({ exerciseId: id, sets: Array.from({ length: count }, () => blankSet(ctx.mode)) });
-  }
-  ctx.changed();
-  ctx.rerender();
-}
-
-export function exerciseCards(ctx) {
-  return ctx.items.map((item, index) => exerciseCard(ctx, item, index));
-}
-
-function exerciseCard(ctx, item, index) {
-  const { mode, items } = ctx;
-  const active = mode === 'active';
-  const exercise = getExercise(item.exerciseId);
-  const previous = active ? lastSets(state.data.workouts, item.exerciseId) : null;
+/**
+ * Editable rows for sets. With hints on, an empty field shows in grey the value
+ * of the set above it (in a plan, an empty set means "same as above").
+ */
+export function setTable({ sets, name, changed, rerender, hints = false }) {
   const rows = [];
-
-  const commit = () => {
-    ctx.changed();
-    ctx.rerender();
-  };
-
-  // A logged workout has no targets, so its empty fields stay blank.
-  const hints = () => (mode === 'workout' ? [] : placeholders(item.sets, previous));
-
   const refreshHints = () => {
-    const values = hints();
+    if (!hints) return;
+    const values = placeholders(sets, null);
     rows.forEach((row, i) => {
-      row.weight.placeholder = fmtInput(values[i]?.weight);
-      row.reps.placeholder = fmtInput(values[i]?.reps);
+      row.weight.placeholder = fmtInput(values[i].weight);
+      row.reps.placeholder = fmtInput(values[i].reps);
     });
-  };
-
-  const syncDone = (i) => {
-    rows[i].el.classList.toggle('done', item.sets[i].done);
-    rows[i].check.setAttribute('aria-pressed', String(item.sets[i].done));
-  };
-
-  const toggleDone = (i) => {
-    const set = item.sets[i];
-    primeAudio();
-    if (set.done) {
-      set.done = false;
-      commit();
-      return;
-    }
-    // Ticking an empty set accepts the grey suggestion.
-    const hint = hints()[i];
-    set.weight ??= hint.weight;
-    set.reps ??= hint.reps;
-    if (!set.reps) {
-      rows[i].weight.value = fmtInput(set.weight);
-      ctx.changed();
-      toast('Trag zuerst die Wiederholungen ein.');
-      rows[i].reps.focus();
-      return;
-    }
-    set.done = true;
-    ctx.onSetDone?.();
-    commit();
-  };
-
-  const removeSet = (i) => {
-    item.sets.splice(i, 1);
-    commit();
   };
 
   const numberField = (set, i, key) => h('input', {
@@ -102,7 +37,7 @@ function exerciseCard(ctx, item, index) {
     enterkeyhint: 'done',
     maxLength: 7,
     value: fmtInput(set[key]),
-    'aria-label': `${key === 'weight' ? 'Gewicht in kg' : 'Wiederholungen'}, Satz ${i + 1}, ${exercise.name}`,
+    'aria-label': `${t(key === 'weight' ? 'set.weightAria' : 'set.repsAria', { n: i + 1 })}, ${name}`,
     onfocus: (event) => {
       const input = event.target;
       setTimeout(() => {
@@ -111,80 +46,90 @@ function exerciseCard(ctx, item, index) {
     },
     oninput: (event) => {
       set[key] = key === 'weight' ? parseWeight(event.target.value) : parseReps(event.target.value);
-      if (active && set.done && !set.reps) {
-        set.done = false;
-        syncDone(i);
-      }
-      ctx.changed();
+      changed();
       refreshHints();
-      ctx.onValues?.();
     },
     onblur: (event) => {
       event.target.value = fmtInput(set[key]);
     },
   });
 
-  item.sets.forEach((set, i) => {
-    const prev = previous?.[i];
+  sets.forEach((set, i) => {
     const weight = numberField(set, i, 'weight');
     const reps = numberField(set, i, 'reps');
-    const check = active && h('button', {
-      class: 'check',
-      'aria-label': `Satz ${i + 1} abhaken, ${exercise.name}`,
-      'aria-pressed': String(!!set.done),
-      onclick: () => toggleDone(i),
-    }, icon('check', 20));
-    const el = h('div', { class: `set-row${set.done ? ' done' : ''}` },
-      h('button', {
-        class: 'set-no',
-        'aria-label': `Satz ${i + 1}, Optionen`,
-        onclick: () => actionSheet({
-          title: `Satz ${i + 1} · ${exercise.name}`,
-          actions: [{ label: 'Satz löschen', icon: 'trash', danger: true, onSelect: () => removeSet(i) }],
-        }),
-      }, String(i + 1)),
-      active && h('button', {
-        class: 'set-prev',
-        disabled: !prev,
-        'aria-label': prev ? `Werte vom letzten Mal übernehmen: ${fmtPrevious(prev)}` : 'Kein Wert vom letzten Mal',
-        onclick: () => {
-          set.weight = prev.weight || null;
-          set.reps = prev.reps;
-          commit();
-        },
-      }, prev ? fmtPrevious(prev) : '–'),
+    rows.push({
       weight,
       reps,
-      active ? check : h('button', {
-        class: 'set-del', 'aria-label': `Satz ${i + 1} löschen`, onclick: () => removeSet(i),
-      }, icon('close', 18)));
-    rows.push({ el, weight, reps, check });
+      el: h('div', { class: 'set-row' },
+        h('span', { class: 'set-no' }, String(i + 1)),
+        weight,
+        reps,
+        h('button', {
+          class: 'set-del',
+          'aria-label': `${t('set.deleteAria', { n: i + 1 })}, ${name}`,
+          onclick: () => {
+            sets.splice(i, 1);
+            changed();
+            rerender();
+          },
+        }, icon('close', 18))),
+    });
   });
   refreshHints();
 
+  return h('div', { class: 'set-grid' },
+    sets.length > 0 && h('div', { class: 'set-row set-head', 'aria-hidden': 'true' },
+      h('span', null, t('set.header')), h('span', null, t('set.weight')), h('span', null, t('set.reps')), h('span')),
+    rows.map((row) => row.el));
+}
+
+// ---- plan editor -----------------------------------------------------------------
+// ctx = { items, changed(), rerender(), onLog(item) }
+
+/** Opens the picker and appends the chosen exercises with three empty sets each. */
+export async function addExercises(ctx) {
+  const ids = await pickExercises();
+  if (!ids?.length) return;
+  for (const id of ids) ctx.items.push({ exerciseId: id, sets: [blankSet(), blankSet(), blankSet()] });
+  ctx.changed();
+  ctx.rerender();
+}
+
+export function exerciseCards(ctx) {
+  return ctx.items.map((item, index) => exerciseCard(ctx, item, index));
+}
+
+function exerciseCard(ctx, item, index) {
+  const { items } = ctx;
+  const exercise = getExercise(item.exerciseId);
+  const commit = () => {
+    ctx.changed();
+    ctx.rerender();
+  };
   const move = (delta) => {
     items.splice(index + delta, 0, items.splice(index, 1)[0]);
     commit();
   };
+  const open = () => navigate(`/exercise/${exercise.id}`);
 
   const menu = () => actionSheet({
     title: exercise.name,
     actions: [
-      { label: 'Statistik ansehen', icon: 'chart', onSelect: () => navigate(`/exercise/${exercise.id}`) },
-      index > 0 && { label: 'Nach oben schieben', icon: 'up', onSelect: () => move(-1) },
-      index < items.length - 1 && { label: 'Nach unten schieben', icon: 'down', onSelect: () => move(1) },
+      { label: t('card.stats'), icon: 'chart', onSelect: open },
+      index > 0 && { label: t('card.up'), icon: 'up', onSelect: () => move(-1) },
+      index < items.length - 1 && { label: t('card.down'), icon: 'down', onSelect: () => move(1) },
       {
-        label: 'Übung ersetzen',
+        label: t('card.replace'),
         icon: 'swap',
         onSelect: async () => {
-          const ids = await pickExercises({ title: 'Übung ersetzen', multiple: false });
+          const ids = await pickExercises({ title: t('picker.replace'), multiple: false });
           if (!ids) return;
           item.exerciseId = ids[0];
           commit();
         },
       },
       {
-        label: 'Übung entfernen',
+        label: t('card.remove'),
         icon: 'trash',
         danger: true,
         onSelect: () => {
@@ -197,21 +142,18 @@ function exerciseCard(ctx, item, index) {
 
   return h('section', { class: 'card ex-card', 'aria-label': exercise.name },
     h('div', { class: 'ex-head' },
-      h('button', { class: 'ex-name', onclick: () => navigate(`/exercise/${exercise.id}`) }, exercise.name),
-      h('button', { class: 'icon-btn', 'aria-label': `Optionen für ${exercise.name}`, onclick: menu }, icon('more'))),
-    h('div', { class: `set-grid ${active ? 'cols-active' : 'cols-plan'}` },
-      item.sets.length > 0 && h('div', { class: 'set-row set-head', 'aria-hidden': 'true' },
-        h('span', null, 'Satz'),
-        active && h('span', null, 'Vorher'),
-        h('span', null, 'kg'),
-        h('span', null, 'Wdh.'),
-        h('span', null, active && icon('check', 14))),
-      rows.map((row) => row.el)),
-    h('button', {
-      class: 'btn btn-quiet btn-block btn-sm',
-      onclick: () => {
-        item.sets.push(blankSet(mode));
-        commit();
-      },
-    }, icon('plus', 16), 'Satz hinzufügen'));
+      h('button', { class: 'ex-name', onclick: open }, exercise.name),
+      h('button', {
+        class: 'icon-btn', 'aria-label': t('common.optionsFor', { name: exercise.name }), onclick: menu,
+      }, icon('more'))),
+    setTable({ sets: item.sets, name: exercise.name, changed: ctx.changed, rerender: ctx.rerender, hints: true }),
+    h('div', { class: 'card-actions' },
+      h('button', {
+        class: 'btn btn-quiet btn-sm',
+        onclick: () => {
+          item.sets.push(blankSet());
+          commit();
+        },
+      }, icon('plus', 16), t('plan.addSet')),
+      h('button', { class: 'btn btn-tint btn-sm', onclick: () => ctx.onLog(item) }, icon('book', 16), t('plan.log'))));
 }

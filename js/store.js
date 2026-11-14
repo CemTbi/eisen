@@ -1,15 +1,14 @@
-// App state and persistence. Data lives in localStorage on the device:
-// one key for the logbook, one small key for the workout in progress (which is
-// written on every keystroke).
+// App state and persistence. Everything lives in localStorage on the device.
 
-import { cleanName, emptyData, normalizeActive, normalizeData, uid } from './model.js';
-import { computePRs, exerciseOverview, setVolume } from './stats.js';
+import { getLang, locale, t } from './i18n.js';
+import { BUILTIN_EXERCISES } from './library.js';
+import { cleanName, emptyData, normalizeData, uid } from './model.js';
+import { computePRs, exerciseOverview } from './stats.js';
 
 const DATA_KEY = 'eisen.data.v1';
-const ACTIVE_KEY = 'eisen.active.v1';
 const CORRUPT_KEY = 'eisen.data.corrupt';
 
-export const state = { data: emptyData(), active: null };
+export const state = { data: emptyData() };
 
 let reportError = () => {};
 export function onStorageError(handler) {
@@ -40,22 +39,13 @@ export const setPref = (key, value) => write(`eisen.pref.${key}`, value);
 
 export function load() {
   const raw = read(DATA_KEY);
-  if (raw) {
-    try {
-      state.data = normalizeData(JSON.parse(raw));
-    } catch {
-      // Never overwrite data we could not read: keep a copy for recovery.
-      write(CORRUPT_KEY, raw);
-      state.data = emptyData();
-    }
-  }
-  const active = read(ACTIVE_KEY);
-  if (active) {
-    try {
-      state.active = normalizeActive(JSON.parse(active), state.data);
-    } catch {
-      state.active = null;
-    }
+  if (!raw) return;
+  try {
+    state.data = normalizeData(JSON.parse(raw));
+  } catch {
+    // Never overwrite data we could not read: keep a copy for recovery.
+    write(CORRUPT_KEY, raw);
+    state.data = emptyData();
   }
 }
 
@@ -67,156 +57,34 @@ function memo(key, compute) {
 
 export function save() {
   cache.clear();
-  state.data.workouts.sort((a, b) => b.start - a.start);
+  state.data.logs.sort((a, b) => b.date - a.date);
   return write(DATA_KEY, JSON.stringify(state.data));
 }
 
-export function saveActive() {
-  return write(ACTIVE_KEY, state.active ? JSON.stringify(state.active) : null);
-}
+// ---- exercises -----------------------------------------------------------------
+// Built-ins take their name from the current language unless the user renamed them.
 
-// ---- derived data (cached until the next save) -----------------------------
+const BUILTINS = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]));
 
-export const personalRecords = () => memo('prs', () => computePRs(state.data.workouts));
-export const overview = () => memo('overview', () => exerciseOverview(state.data.workouts));
+const exerciseMap = () => memo(`exercises:${getLang()}`, () => {
+  const map = new Map();
+  const deleted = new Set(state.data.deletedBuiltins);
+  for (const e of BUILTIN_EXERCISES) {
+    if (!deleted.has(e.id)) map.set(e.id, { id: e.id, name: t(`ex.${e.id}`), muscle: e.muscle });
+  }
+  for (const e of state.data.exercises) map.set(e.id, e);
+  return map;
+});
 
-const UNKNOWN = { id: '', name: 'Unbekannte Übung', muscle: 'Sonstiges' };
+export const getExercise = (id) => exerciseMap().get(id) ?? null;
 
-export function getExercise(id) {
-  return memo('exercises', () => new Map(state.data.exercises.map((e) => [e.id, e]))).get(id) ?? UNKNOWN;
-}
-
-export const sortedExercises = () => memo('sorted', () => (
-  [...state.data.exercises].sort((a, b) => a.name.localeCompare(b.name, 'de'))
+export const allExercises = () => memo(`sorted:${getLang()}`, () => (
+  [...exerciseMap().values()].sort((a, b) => a.name.localeCompare(b.name, locale()))
 ));
 
-// ---- plans -----------------------------------------------------------------
-
-export const getRoutine = (id) => state.data.routines.find((r) => r.id === id) ?? null;
-
-export function createRoutine(fields = {}) {
-  const routine = { id: uid(), name: '', items: [], ...fields };
-  state.data.routines.push(routine);
-  save();
-  return routine;
-}
-
-export function removeRoutine(id) {
-  state.data.routines = state.data.routines.filter((r) => r.id !== id);
-  save();
-}
-
-const copyItems = (items) => items.map((item) => ({
-  exerciseId: item.exerciseId,
-  sets: item.sets.map((s) => ({ weight: s.weight || null, reps: s.reps ?? null })),
-}));
-
-export function duplicateRoutine(id) {
-  const source = getRoutine(id);
-  if (!source) return null;
-  const copy = { id: uid(), name: cleanName(`${source.name || 'Plan'} (Kopie)`), items: copyItems(source.items) };
-  state.data.routines.splice(state.data.routines.indexOf(source) + 1, 0, copy);
-  save();
-  return copy;
-}
-
-export const routineFromWorkout = (workout) => createRoutine({ name: workout.name, items: copyItems(workout.items) });
-
-// ---- workout in progress -----------------------------------------------------
-
-export function startWorkout(routine) {
-  state.active = {
-    id: uid(),
-    name: routine ? routine.name || 'Training' : 'Freies Training',
-    routineId: routine?.id ?? null,
-    start: Date.now(),
-    rest: null,
-    items: (routine?.items ?? []).map((item) => ({
-      exerciseId: item.exerciseId,
-      sets: item.sets.map((s) => ({ weight: null, reps: null, done: false, tw: s.weight, tr: s.reps })),
-    })),
-  };
-  saveActive();
-  return state.active;
-}
-
-export function activeTotals(active = state.active) {
-  let done = 0;
-  let open = 0;
-  let volume = 0;
-  for (const item of active?.items ?? []) {
-    for (const set of item.sets) {
-      if (set.done && set.reps) {
-        done += 1;
-        volume += setVolume(set);
-      } else {
-        open += 1;
-      }
-    }
-  }
-  return { done, open, volume };
-}
-
-/**
- * Stores the workout in progress in the logbook. Only ticked sets are kept.
- * Returns the saved workout, or null when no set was ticked.
- */
-export function finishWorkout({ updateRoutine = false, now = Date.now() } = {}) {
-  const active = state.active;
-  if (!active) return null;
-  const items = active.items
-    .map((item) => ({
-      exerciseId: item.exerciseId,
-      sets: item.sets.filter((s) => s.done && s.reps).map((s) => ({ weight: s.weight || 0, reps: s.reps })),
-    }))
-    .filter((item) => item.sets.length);
-  if (!items.length) return null;
-
-  const routine = active.routineId ? getRoutine(active.routineId) : null;
-  const workout = {
-    id: active.id,
-    name: cleanName(active.name) || routine?.name || 'Training',
-    routineId: routine?.id ?? null,
-    start: active.start,
-    end: Math.max(now, active.start),
-    items,
-  };
-  state.data.workouts.push(workout);
-
-  if (routine && updateRoutine) {
-    // The plan takes over this workout's exercises and sets. Sets that were
-    // not ticked keep the value they were aiming for.
-    routine.items = active.items.map((item) => ({
-      exerciseId: item.exerciseId,
-      sets: item.sets.map((s) => ({ weight: (s.weight ?? s.tw) || null, reps: s.reps ?? s.tr ?? null })),
-    }));
-  }
-
-  state.active = null;
-  save();
-  saveActive();
-  return workout;
-}
-
-export function discardActive() {
-  state.active = null;
-  saveActive();
-}
-
-// ---- logbook -----------------------------------------------------------------
-
-export const getWorkout = (id) => state.data.workouts.find((w) => w.id === id) ?? null;
-
-export function removeWorkout(id) {
-  state.data.workouts = state.data.workouts.filter((w) => w.id !== id);
-  save();
-}
-
-// ---- exercises ---------------------------------------------------------------
-
 export function exerciseNameTaken(name, exceptId = null) {
-  const wanted = cleanName(name).toLocaleLowerCase('de');
-  return state.data.exercises.some((e) => e.id !== exceptId && e.name.toLocaleLowerCase('de') === wanted);
+  const wanted = cleanName(name).toLocaleLowerCase(locale());
+  return allExercises().some((e) => e.id !== exceptId && e.name.toLocaleLowerCase(locale()) === wanted);
 }
 
 export function addExercise({ name, muscle }) {
@@ -227,40 +95,114 @@ export function addExercise({ name, muscle }) {
 }
 
 export function updateExercise(id, { name, muscle }) {
-  const exercise = state.data.exercises.find((e) => e.id === id);
-  if (!exercise) return null;
-  exercise.name = cleanName(name);
-  exercise.muscle = muscle;
+  if (!getExercise(id)) return null;
+  const builtin = BUILTINS.get(id);
+  const fields = { name: cleanName(name), muscle };
+  state.data.exercises = state.data.exercises.filter((e) => e.id !== id);
+  // A built-in set back to its original name follows the language again.
+  if (!builtin || fields.name !== t(`ex.${id}`) || muscle !== builtin.muscle) {
+    state.data.exercises.push(builtin ? { id, ...fields } : { id, ...fields, custom: true });
+  }
   save();
-  return exercise;
+  return getExercise(id);
 }
 
 export function exerciseInUse(id) {
-  const uses = (items) => items.some((item) => item.exerciseId === id);
-  return state.data.workouts.some((w) => uses(w.items))
-    || state.data.routines.some((r) => uses(r.items))
-    || uses(state.active?.items ?? []);
+  return state.data.logs.some((log) => log.exerciseId === id)
+    || state.data.routines.some((r) => r.items.some((item) => item.exerciseId === id));
 }
 
 /** Removes an exercise from the library. Refuses (returns false) while it is in use. */
 export function removeExercise(id) {
-  const exercise = state.data.exercises.find((e) => e.id === id);
-  if (!exercise || exerciseInUse(id)) return false;
+  if (!getExercise(id) || exerciseInUse(id)) return false;
   state.data.exercises = state.data.exercises.filter((e) => e.id !== id);
-  if (!exercise.custom) state.data.deletedBuiltins.push(id);
+  if (BUILTINS.has(id)) state.data.deletedBuiltins.push(id);
   save();
   return true;
 }
+
+// ---- plans -----------------------------------------------------------------
+
+export const getRoutine = (id) => state.data.routines.find((r) => r.id === id) ?? null;
+
+export function createRoutine() {
+  const routine = { id: uid(), name: '', items: [] };
+  state.data.routines.push(routine);
+  save();
+  return routine;
+}
+
+export function removeRoutine(id) {
+  state.data.routines = state.data.routines.filter((r) => r.id !== id);
+  save();
+}
+
+export function duplicateRoutine(id) {
+  const source = getRoutine(id);
+  if (!source) return null;
+  const copy = {
+    id: uid(),
+    name: cleanName(`${source.name || t('plans.unnamed')} ${t('plans.copySuffix')}`),
+    items: source.items.map((item) => ({ exerciseId: item.exerciseId, sets: item.sets.map((s) => ({ ...s })) })),
+  };
+  state.data.routines.splice(state.data.routines.indexOf(source) + 1, 0, copy);
+  save();
+  return copy;
+}
+
+// ---- logbook -----------------------------------------------------------------
+
+export const getLog = (id) => state.data.logs.find((log) => log.id === id) ?? null;
+
+/** Most recent entry of an exercise (logs are kept newest first). */
+export const lastLog = (exerciseId) => state.data.logs.find((log) => log.exerciseId === exerciseId) ?? null;
+
+export function addLog({ exerciseId, date, sets }) {
+  const log = { id: uid(), exerciseId, date, sets };
+  state.data.logs.push(log);
+  save();
+  return log;
+}
+
+export function updateLog(id, { date, sets }) {
+  const log = getLog(id);
+  if (!log) return null;
+  log.date = date;
+  log.sets = sets;
+  save();
+  return log;
+}
+
+export function removeLog(id) {
+  state.data.logs = state.data.logs.filter((log) => log.id !== id);
+  save();
+}
+
+// The statistics work on "sessions": one per logbook entry.
+export const sessions = () => memo('sessions', () => state.data.logs.map((log) => ({
+  id: log.id, name: '', start: log.date, items: [{ exerciseId: log.exerciseId, sets: log.sets }],
+})));
+
+/** Ids of entries that set a personal record → index of the record set. */
+export const personalRecords = () => memo('prs', () => {
+  const records = new Map();
+  for (const [id, keys] of computePRs(sessions())) {
+    for (const key of keys) records.set(id, Number(key.split(':')[1]));
+  }
+  return records;
+});
+
+export const overview = () => memo('overview', () => exerciseOverview(sessions()));
 
 // ---- backup ------------------------------------------------------------------
 
 export function replaceData(data) {
   state.data = data;
-  state.active = null;
-  saveActive();
   return save();
 }
 
+/** Deletes plans, entries and custom exercises; language and theme stay. */
 export function resetAll() {
-  return replaceData(emptyData());
+  const { lang, theme } = state.data.settings;
+  return replaceData({ ...emptyData(), settings: { lang, theme, lastExport: null } });
 }

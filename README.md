@@ -1,19 +1,20 @@
 # Eisen
 
 Schlankes Trainingslogbuch fürs iPhone: Trainingspläne mit Sätzen, Wiederholungen und Gewichten,
-ein Logbuch aller Trainings und der Fortschritt pro Übung.
+ein Logbuch pro Übung zum Eintragen von Hand und der Fortschritt über die Zeit.
 
 Eisen ist eine installierbare Web-App (PWA). Sie besteht nur aus statischen Dateien, braucht keinen
 Server und kein Konto, und läuft nach der Installation offline. Alle Daten bleiben auf dem Gerät.
 
 ## Funktionen
 
-- **Pläne**: Übungen aus der Bibliothek (oder eigene) mit Zielgewicht und Wiederholungen pro Satz.
-- **Training**: Sätze abhaken, die Werte vom letzten Mal stehen daneben und sind als Vorschlag
-  vorausgefüllt. Pausentimer nach jedem Satz. Ein laufendes Training übersteht das Schließen der App.
-- **Verlauf**: jedes Training mit Dauer, Volumen und Bestwerten; nachträglich bearbeitbar.
-- **Übungen**: aktuelles Gewicht und Bestwert pro Übung, dazu Diagramme für Gewicht, geschätztes
-  1RM und Volumen.
+- **Pläne**: Trainingspläne mit Übungen, Sätzen, Wiederholungen und Gewichten.
+- **Logbuch**: pro Übung von Hand eintragen, was geschafft wurde (Datum, Sätze, Wiederholungen,
+  Gewicht), auch rückwirkend, etwa alte Bestwerte. Ein Eintrag lässt sich direkt aus dem Plan
+  starten und ist dann mit dessen Werten vorausgefüllt.
+- **Fortschritt**: letztes Gewicht und Bestwert pro Übung, Diagramme für Gewicht, geschätztes 1RM
+  und Volumen, Bestwerte werden markiert.
+- **Sprache und Design**: Deutsch und Englisch, Designs „Midnight“ und „Schwarz“ (Einstellungen).
 - **Backup**: Export und Import als JSON-Datei.
 
 ## Auf dem iPhone installieren
@@ -26,7 +27,7 @@ Die installierte App hat einen eigenen Speicher, getrennt von Safari. Daten also
 Installation eintragen, oder per Backup übertragen.
 
 iOS kann den Speicher von Web-Apps löschen, wenn die App gelöscht wird. Ab und zu ein Backup
-exportieren (Einstellungen, oben rechts im Tab „Training“).
+exportieren (Tab „Einstellungen“).
 
 ## Entwicklung
 
@@ -43,13 +44,20 @@ npm run icons                    # PNG-Icons aus icons/icon.svg neu erzeugen
 
 | Pfad | Inhalt |
 |---|---|
-| `index.html`, `styles.css` | Gerüst und das komplette Styling |
+| `index.html`, `styles.css` | Gerüst und das komplette Styling, inklusive der Designs |
+| `js/locales/` | Alle Texte und Übungsnamen, eine Datei pro Sprache |
 | `js/model.js` | Datenmodell und Validierung (Speicher, Backup-Import) |
-| `js/stats.js` | Berechnungen: Bestwerte, 1RM, Volumen, Vorschlagswerte |
+| `js/stats.js` | Berechnungen: Bestwerte, 1RM, Volumen |
 | `js/store.js` | Zustand und Speicherung in `localStorage` |
-| `js/editor.js` | Die Satz-Tabelle für Training, Plan und Verlauf |
-| `js/views/` | Die Seiten: Training, Verlauf, Übungen, Einstellungen |
+| `js/editor.js` | Die Satz-Tabelle für Plan und Logbuch-Eintrag |
+| `js/views/` | Die Seiten: Pläne, Logbuch, Eintrag, Einstellungen |
 | `sw.js` | Service Worker für den Offline-Betrieb |
+
+**Neue Sprache**: `js/locales/de.js` kopieren und übersetzen, in `js/i18n.js` unter `LOCALES`
+eintragen. Ein Unit-Test prüft, dass keine Schlüssel fehlen.
+
+**Neues Design**: einen Block `:root[data-theme="…"]` in `styles.css` ergänzen und den Namen in
+`THEMES` (`js/model.js`), `BACKGROUND` (`js/appearance.js`) und den Sprachdateien eintragen.
 
 Neue Dateien unter `js/` oder `icons/` müssen in die Liste in `sw.js`; ein Unit-Test prüft das.
 

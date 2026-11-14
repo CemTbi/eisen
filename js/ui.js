@@ -1,5 +1,6 @@
 // Overlays: bottom sheets, dialogs, action menus, confirmations and toasts.
 
+import { t } from './i18n.js';
 import { h, icon } from './util.js';
 
 const openSheets = new Set();
@@ -82,13 +83,13 @@ export function actionSheet({ title, actions }) {
           action.onSelect();
         },
       }, action.icon && icon(action.icon, 20), action.label)),
-      h('button', { class: 'action cancel', onclick: () => sheet.close() }, 'Abbrechen')),
+      h('button', { class: 'action cancel', onclick: () => sheet.close() }, t('common.cancel'))),
   });
   return sheet;
 }
 
 /** Resolves true when the user confirms, false on cancel or dismissal. */
-export function confirm({ title, message, confirmLabel, cancelLabel = 'Abbrechen', danger = false }) {
+export function confirm({ title, message, confirmLabel, cancelLabel = t('common.cancel'), danger = false }) {
   return new Promise((resolve) => {
     let answer = false;
     const sheet = openSheet({

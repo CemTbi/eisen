@@ -1,6 +1,8 @@
-// DOM helper, icons and formatting. No app state in here.
+// DOM helper, icons and locale-aware formatting. No app state in here.
 
-export const APP_VERSION = '1.0.0';
+import { getLang, locale, t } from './i18n.js';
+
+export const APP_VERSION = '2.0.0';
 export const DAY = 86_400_000;
 
 /**
@@ -50,11 +52,10 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5"/>',
   dumbbell: '<path d="M3 9.5v5M6.5 6.5v11M17.5 6.5v11M21 9.5v5M6.5 12h11"/>',
-  history: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="3"/>',
+  book: '<path d="M5 4.5h11a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3zM5 16.5a3 3 0 0 1 3-3h11M9 8.5h6"/>',
   chart: '<path d="M4 19.5h16M5 15l4.5-5 3.5 3L19 6.5M14.5 6.5H19V11"/>',
   settings: '<path d="M4 7h7M17 7h3M4 17h3M13 17h7"/><circle cx="14" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/>',
-  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
-  timer: '<circle cx="12" cy="13.5" r="7"/><path d="M12 10v3.5l2 1.5M9.5 3h5"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7"/>',
   edit: '<path d="M4 20l1-4L16.5 4.5l3 3L8 19zM14.5 6.5l3 3"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
@@ -73,20 +74,31 @@ export function icon(name, size = 22) {
 
 // ---- numbers -------------------------------------------------------------
 
-const numberFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
-const numberFormat1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
-
-export const fmtNum = (n) => numberFormat.format(n);
-export const fmtNum1 = (n) => numberFormat1.format(n);
-export const fmtKg = (n) => `${fmtNum(n)} kg`;
-
-/** A logged set as text: "80 kg × 8", or "12 Wdh." for bodyweight sets. */
-export function fmtSet(set) {
-  return set.weight > 0 ? `${fmtNum(set.weight)} kg × ${set.reps}` : `${set.reps} Wdh.`;
+// Intl formatters are slow to build, so keep one per language and shape.
+const formatters = new Map();
+function formatter(kind, options) {
+  const key = `${locale()}|${kind}`;
+  if (!formatters.has(key)) {
+    formatters.set(key, options.number
+      ? new Intl.NumberFormat(locale(), options.number)
+      : new Intl.DateTimeFormat(locale(), options.date));
+  }
+  return formatters.get(key);
 }
 
-/** Number as it appears in an input field: German decimal comma, no grouping. */
-export const fmtInput = (n) => (n == null ? '' : String(n).replace('.', ','));
+export const fmtNum = (n) => formatter('n2', { number: { maximumFractionDigits: 2 } }).format(n);
+export const fmtNum1 = (n) => formatter('n1', { number: { maximumFractionDigits: 1 } }).format(n);
+export const fmtKg = (n) => `${fmtNum(n)} kg`;
+export const fmtReps = (n) => `${fmtNum(n)} ${t('unit.reps')}`;
+
+/** A logged set as text: "80 kg × 8", or "12 reps" for bodyweight sets. */
+export const fmtSet = (set) => (set.weight > 0 ? `${fmtNum(set.weight)} kg × ${set.reps}` : fmtReps(set.reps));
+
+/** "3 Sätze": a count with the right singular or plural of a "n.*" key. */
+export const count = (n, key) => `${fmtNum(n)} ${t(key)[n === 1 ? 0 : 1]}`;
+
+/** Number as it appears in an input field: the language's decimal mark, no grouping. */
+export const fmtInput = (n) => (n == null ? '' : getLang() === 'de' ? String(n).replace('.', ',') : String(n));
 
 /** Parses "62,5" or "62.5". Returns null for empty, negative or malformed input. */
 export function parseNum(str) {
@@ -112,67 +124,51 @@ export function parseReps(str) {
   return reps > 0 ? reps : null;
 }
 
-// ---- time ----------------------------------------------------------------
+// ---- dates -----------------------------------------------------------------
 
 const pad = (n) => String(n).padStart(2, '0');
-const dayFormat = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
-const dayYearFormat = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
-const longFormat = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-});
-const monthFormat = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
 
 export function fmtDay(ts, now = Date.now()) {
   const date = new Date(ts);
-  return date.getFullYear() === new Date(now).getFullYear() ? dayFormat.format(date) : dayYearFormat.format(date);
+  return date.getFullYear() === new Date(now).getFullYear()
+    ? formatter('day', { date: { weekday: 'short', day: 'numeric', month: 'short' } }).format(date)
+    : formatter('dayYear', { date: { day: 'numeric', month: 'short', year: 'numeric' } }).format(date);
 }
-
-export const fmtDateLong = (ts) => longFormat.format(new Date(ts));
-export const fmtMonth = (ts) => monthFormat.format(new Date(ts));
 
 const startOfDay = (ts) => new Date(ts).setHours(0, 0, 0, 0);
 
 export function fmtRelative(ts, now = Date.now()) {
   const days = Math.round((startOfDay(now) - startOfDay(ts)) / DAY);
-  if (days <= 0) return 'heute';
-  if (days === 1) return 'gestern';
-  if (days < 14) return `vor ${days} Tagen`;
+  if (days <= 0) return t('time.today');
+  if (days === 1) return t('time.yesterday');
+  if (days < 14) return t('time.daysAgo', { n: days });
   return fmtDay(ts, now);
 }
 
-/** "45 min" or "1 h 5 min". */
-export function fmtDuration(ms) {
-  const minutes = Math.max(1, Math.round(ms / 60_000));
-  if (minutes < 60) return `${minutes} min`;
-  const rest = minutes % 60;
-  return rest ? `${Math.floor(minutes / 60)} h ${rest} min` : `${minutes / 60} h`;
-}
-
-/** Running clock: "4:07" or "1:04:07". */
-export function fmtClock(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(s / 3600);
-  const minutes = Math.floor((s % 3600) / 60);
-  return hours ? `${hours}:${pad(minutes)}:${pad(s % 60)}` : `${minutes}:${pad(s % 60)}`;
-}
-
-/** Timestamp to the value of an <input type="datetime-local">, and back. */
-export function toLocalInput(ts) {
+/** Timestamp to the value of an <input type="date"> (local day). */
+export function toDateInput(ts) {
   const d = new Date(ts);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function fromLocalInput(value) {
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) ? ts : null;
+/**
+ * Value of an <input type="date"> to a timestamp. Today keeps the current time
+ * (so several entries on one day stay in order); other days are set to noon.
+ * Returns null for invalid or future dates.
+ */
+export function fromDateInput(value, now = Date.now()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  if (!match) return null;
+  const noon = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12).getTime();
+  if (!Number.isFinite(noon) || toDateInput(noon) !== value) return null;
+  if (value === toDateInput(now)) return now;
+  return noon > now ? null : noon;
 }
 
 // ---- text ----------------------------------------------------------------
 
 /** Case- and accent-insensitive form for searching and duplicate checks. */
 export const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
-
-export const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`;
 
 // ---- platform --------------------------------------------------------------
 

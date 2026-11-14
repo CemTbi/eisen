@@ -1,7 +1,7 @@
-// Pure calculations over workouts. No DOM, no storage: everything here is unit-tested.
+// Pure calculations over the logbook. No DOM, no storage: everything here is unit-tested.
 //
-// Shapes: workout = { id, name, start, end, items: [{ exerciseId, sets: [{ weight, reps }] }] }
-// A weight of 0 means a bodyweight set.
+// Input is a list of sessions: { id, name, start, items: [{ exerciseId, sets: [{ weight, reps }] }] }.
+// The app passes one session per logbook entry. A weight of 0 means a bodyweight set.
 
 /** Estimated one-rep max (Epley). 0 for bodyweight sets. */
 export function e1rm(weight, reps) {
@@ -10,18 +10,6 @@ export function e1rm(weight, reps) {
 }
 
 export const setVolume = (set) => (set.weight || 0) * (set.reps || 0);
-
-export function workoutTotals(workout) {
-  let sets = 0;
-  let volume = 0;
-  for (const item of workout.items) {
-    for (const set of item.sets) {
-      sets += 1;
-      volume += setVolume(set);
-    }
-  }
-  return { sets, volume };
-}
 
 function compareSets(a, b) {
   return e1rm(a.weight, a.reps) - e1rm(b.weight, b.reps) || (a.weight || 0) - (b.weight || 0) || a.reps - b.reps;
@@ -75,17 +63,6 @@ export function summarize(sessions) {
     maxReps: record('maxReps'),
     totalReps: record('totalReps'),
   };
-}
-
-/** Sets of the most recent workout containing the exercise, or null. */
-export function lastSets(workouts, exerciseId) {
-  let latest = null;
-  for (const workout of workouts) {
-    if ((!latest || workout.start > latest.start) && workout.items.some((i) => i.exerciseId === exerciseId && i.sets.length)) {
-      latest = workout;
-    }
-  }
-  return latest ? latest.items.filter((i) => i.exerciseId === exerciseId).flatMap((i) => i.sets) : null;
 }
 
 /**
@@ -178,29 +155,6 @@ export function placeholders(sets, previous) {
     carryReps = set.reps ?? reps;
   });
   return out;
-}
-
-/** Monday 00:00 local time of the week containing ts. */
-export function startOfWeek(ts) {
-  const date = new Date(ts);
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-  return date.getTime();
-}
-
-/** Which days of the current week (Mon..Sun) had a workout. */
-export function weekSummary(workouts, now = Date.now()) {
-  const start = startOfWeek(now);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
-  const days = Array(7).fill(false);
-  let count = 0;
-  for (const workout of workouts) {
-    if (workout.start < start || workout.start >= end.getTime()) continue;
-    days[(new Date(workout.start).getDay() + 6) % 7] = true;
-    count += 1;
-  }
-  return { count, days, today: (new Date(now).getDay() + 6) % 7 };
 }
 
 /** Round axis bounds and ticks for a value range. */

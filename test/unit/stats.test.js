@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  bestSet, computePRs, e1rm, exerciseOverview, exerciseSessions, lastSets, niceScale, placeholders, startOfWeek,
-  summarize, weekSummary, workoutTotals,
+  bestSet, computePRs, e1rm, exerciseOverview, exerciseSessions, niceScale, placeholders, summarize,
 } from '../../js/stats.js';
 
 const DAY = 86_400_000;
@@ -30,10 +29,6 @@ test('e1rm uses Epley and is the weight itself for a single', () => {
   assert.equal(e1rm(0, 12), 0);
   assert.equal(e1rm(80, 0), 0);
   assert.equal(e1rm(null, null), 0);
-});
-
-test('workoutTotals counts sets and volume, bodyweight sets add no volume', () => {
-  assert.deepEqual(workoutTotals(LOG[0]), { sets: 5, volume: 60 * 8 + 60 * 8 + 60 * 6 });
 });
 
 test('bestSet prefers the higher estimated 1RM, then reps for bodyweight', () => {
@@ -77,12 +72,6 @@ test('summarize marks bodyweight-only exercises as unweighted', () => {
   assert.equal(summary.weighted, false);
   assert.deepEqual(summary.maxReps, { value: 10, date: LOG[1].start });
   assert.equal(summary.totalReps.value, 14);
-});
-
-test('lastSets returns the sets of the most recent workout regardless of order', () => {
-  assert.deepEqual(lastSets(LOG, 'bench'), [{ weight: 60, reps: 10 }]);
-  assert.deepEqual(lastSets([...LOG].reverse(), 'squat'), [{ weight: 100, reps: 5 }]);
-  assert.equal(lastSets(LOG, 'nothing'), null);
 });
 
 test('exerciseOverview summarises each exercise', () => {
@@ -132,22 +121,6 @@ test('placeholders leave the weight open for bodyweight history', () => {
     placeholders([{ weight: null, reps: null, tw: null, tr: null }], [{ weight: 0, reps: 12 }]),
     [{ weight: null, reps: 12 }],
   );
-});
-
-test('startOfWeek is Monday midnight', () => {
-  const monday = new Date(2026, 10, 9).getTime();
-  assert.equal(startOfWeek(new Date(2026, 10, 9, 0, 0).getTime()), monday);
-  assert.equal(startOfWeek(new Date(2026, 10, 14, 18, 30).getTime()), monday);
-  assert.equal(startOfWeek(new Date(2026, 10, 15, 23, 59).getTime()), monday);
-});
-
-test('weekSummary only counts workouts of the current week', () => {
-  const now = new Date(2026, 10, 14, 12, 0).getTime(); // Saturday
-  const at = (y, m, d) => ({ start: new Date(y, m, d, 18).getTime() });
-  const summary = weekSummary([at(2026, 10, 8), at(2026, 10, 9), at(2026, 10, 11), at(2026, 10, 11), at(2026, 10, 16)], now);
-  assert.equal(summary.count, 3);
-  assert.deepEqual(summary.days, [true, false, true, false, false, false, false]);
-  assert.equal(summary.today, 5);
 });
 
 test('niceScale picks round bounds that contain the data', () => {

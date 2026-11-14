@@ -1,17 +1,20 @@
 // Exercise picker and the form for creating or editing an exercise.
 
 import { chips, field } from './components.js';
+import { t } from './i18n.js';
 import { MUSCLES } from './library.js';
 import { MAX_NAME, cleanName } from './model.js';
-import { addExercise, exerciseNameTaken, sortedExercises, updateExercise } from './store.js';
+import { addExercise, allExercises, exerciseNameTaken, updateExercise } from './store.js';
 import { openSheet, toast } from './ui.js';
 import { fold, h, icon, setChildren } from './util.js';
+
+export const muscleName = (key) => t(`muscle.${key}`);
 
 /**
  * Lets the user choose exercises. Resolves with an array of exercise ids in
  * the order they were tapped, or null when cancelled.
  */
-export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
+export function pickExercises({ title = t('picker.title'), multiple = true } = {}) {
   return new Promise((resolve) => {
     let query = '';
     let muscle = null;
@@ -26,11 +29,11 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
         result = [...selected];
         sheet.close();
       },
-    }, 'Hinzufügen');
+    }, t('picker.add'));
 
     const syncConfirm = () => {
       confirmButton.disabled = selected.size === 0;
-      confirmButton.textContent = selected.size ? `Hinzufügen (${selected.size})` : 'Hinzufügen';
+      confirmButton.textContent = selected.size ? t('picker.addN', { n: selected.size }) : t('picker.add');
     };
 
     const choose = (exercise, row) => {
@@ -63,7 +66,7 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
 
     const draw = () => {
       const needle = fold(query);
-      const matches = sortedExercises()
+      const matches = allExercises()
         .filter((e) => (!muscle || e.muscle === muscle) && (!needle || fold(e.name).includes(needle)));
       setChildren(list,
         matches.map((exercise) => {
@@ -74,14 +77,14 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
           },
             h('span', { class: 'row-main' },
               h('span', { class: 'row-title' }, exercise.name),
-              h('span', { class: 'meta' }, exercise.muscle)),
+              h('span', { class: 'meta' }, muscleName(exercise.muscle))),
             multiple && h('span', { class: 'tick', 'aria-hidden': 'true' }, icon('check', 16)));
           return row;
         }),
-        !matches.length && h('p', { class: 'list-note' }, 'Keine passende Übung gefunden.'),
+        !matches.length && h('p', { class: 'list-note' }, t('picker.none')),
         h('button', { class: 'row row-create', onclick: create },
           icon('plus', 18),
-          query.trim() ? `„${cleanName(query)}“ neu anlegen` : 'Neue Übung anlegen'),
+          query.trim() ? t('picker.createNamed', { name: cleanName(query) }) : t('picker.create')),
       );
     };
 
@@ -89,8 +92,8 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
       class: 'field search',
       type: 'text',
       inputmode: 'search',
-      placeholder: 'Übung suchen',
-      'aria-label': 'Übung suchen',
+      placeholder: t('picker.search'),
+      'aria-label': t('picker.search'),
       autocomplete: 'off',
       enterkeyhint: 'search',
       oninput: (event) => {
@@ -102,7 +105,7 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
     const sheet = openSheet({
       title,
       variant: 'full',
-      left: h('button', { class: 'btn-text', onclick: () => sheet.close() }, 'Abbrechen'),
+      left: h('button', { class: 'btn-text', onclick: () => sheet.close() }, t('common.cancel')),
       right: multiple && confirmButton,
       onClose: () => resolve(result),
       body: [
@@ -111,8 +114,9 @@ export function pickExercises({ title = 'Übungen', multiple = true } = {}) {
           chips({
             options: MUSCLES,
             value: muscle,
-            allLabel: 'Alle',
-            label: 'Muskelgruppe',
+            allLabel: t('common.all'),
+            label: t('form.muscle'),
+            labelOf: muscleName,
             onChange: (value) => {
               muscle = value;
               draw();
@@ -138,7 +142,7 @@ export function exerciseForm({ exercise = null, name = '', muscle = null } = {})
       type: 'text',
       value: exercise?.name ?? name,
       maxLength: MAX_NAME,
-      placeholder: 'z. B. Bankdrücken (Maschine)',
+      placeholder: t('form.namePlaceholder'),
       autocomplete: 'off',
       enterkeyhint: 'done',
       onkeydown: (event) => {
@@ -148,13 +152,8 @@ export function exerciseForm({ exercise = null, name = '', muscle = null } = {})
 
     const submit = () => {
       const value = cleanName(input.value);
-      if (!value) {
-        toast('Gib der Übung einen Namen.');
-        input.focus();
-        return;
-      }
-      if (exerciseNameTaken(value, exercise?.id)) {
-        toast('Eine Übung mit diesem Namen gibt es schon.');
+      if (!value || exerciseNameTaken(value, exercise?.id)) {
+        toast(t(value ? 'form.duplicate' : 'form.needName'));
         input.focus();
         return;
       }
@@ -165,16 +164,24 @@ export function exerciseForm({ exercise = null, name = '', muscle = null } = {})
     };
 
     const sheet = openSheet({
-      title: exercise ? 'Übung bearbeiten' : 'Neue Übung',
+      title: t(exercise ? 'form.edit' : 'form.new'),
       variant: 'dialog',
       onClose: () => resolve(result),
       body: h('div', { class: 'stack' },
-        field('Name', input),
+        field(t('form.name'), input),
         h('div', { class: 'form-field' },
-          h('span', { class: 'form-label' }, 'Muskelgruppe'),
-          chips({ options: MUSCLES, value: chosen, label: 'Muskelgruppe', onChange: (value) => { chosen = value; } })),
-        h('button', { class: 'btn btn-primary btn-block', onclick: submit }, 'Speichern'),
-        h('button', { class: 'action cancel', onclick: () => sheet.close() }, 'Abbrechen')),
+          h('span', { class: 'form-label' }, t('form.muscle')),
+          chips({
+            options: MUSCLES,
+            value: chosen,
+            label: t('form.muscle'),
+            labelOf: muscleName,
+            onChange: (value) => {
+              chosen = value;
+            },
+          })),
+        h('button', { class: 'btn btn-primary btn-block', onclick: submit }, t('common.save')),
+        h('button', { class: 'action cancel', onclick: () => sheet.close() }, t('common.cancel'))),
     });
     input.focus();
   });

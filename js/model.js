@@ -1,16 +1,33 @@
 // Data model and validation. Everything read from storage or from a backup
 // file goes through normalizeData, so the rest of the app can trust its shapes.
+//
+// data = {
+//   version: 2,
+//   exercises: custom exercises and renamed built-ins  [{ id, name, muscle, custom? }]
+//   deletedBuiltins: ids of built-ins the user removed
+//   routines: the training plans                         [{ id, name, items: [{ exerciseId, sets }] }]
+//   logs: the logbook, one entry per exercise and day    [{ id, exerciseId, date, sets }]
+//   settings: { lang, theme, lastExport }
+// }
+// A set is { weight, reps }. In plans both may be null; in the logbook reps is
+// always set and a weight of 0 means bodyweight.
 
+import { LOCALES, translations } from './i18n.js';
 import { BUILTIN_EXERCISES, MUSCLES } from './library.js';
 
 export const ID_RE = /^[\w-]{1,64}$/;
 export const MAX_NAME = 60;
-export const REST_OPTIONS = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300];
+export const THEMES = ['midnight', 'black'];
 
 const MAX_WEIGHT = 2000;
 const MAX_REPS = 1000;
 const MAX_SETS = 50;
 const MAX_ITEMS = 100;
+
+// Version 1 stored muscle groups by their German label.
+const LEGACY_MUSCLES = {
+  Brust: 'chest', Rücken: 'back', Schultern: 'shoulders', Bizeps: 'biceps', Trizeps: 'triceps', Beine: 'legs', Bauch: 'abs',
+};
 
 export function uid() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -19,12 +36,12 @@ export function uid() {
 
 export function emptyData() {
   return {
-    version: 1,
-    exercises: BUILTIN_EXERCISES.map((e) => ({ ...e })),
+    version: 2,
+    exercises: [],
     deletedBuiltins: [],
     routines: [],
-    workouts: [],
-    settings: { restSeconds: 90, sound: true, lastExport: null },
+    logs: [],
+    settings: { lang: 'auto', theme: 'midnight', lastExport: null },
   };
 }
 
@@ -46,69 +63,49 @@ function repsOf(v) {
   return n == null || Math.floor(n) < 1 ? null : Math.floor(n);
 }
 
-/** Exercises of a plan: sets may be partly or completely empty. */
-function planItems(raw, ensure) {
-  return arr(raw).slice(0, MAX_ITEMS).flatMap((item) => {
-    const exerciseId = isObj(item) ? idOf(item.exerciseId) : null;
-    if (!exerciseId) return [];
-    ensure(exerciseId);
-    const sets = arr(item.sets).filter(isObj).slice(0, MAX_SETS)
-      .map((s) => ({ weight: weightOf(s.weight), reps: repsOf(s.reps) }));
-    return [{ exerciseId, sets }];
-  });
-}
+const planSets = (raw) => arr(raw).filter(isObj).slice(0, MAX_SETS).map((s) => ({ weight: weightOf(s.weight), reps: repsOf(s.reps) }));
 
-/** Exercises of a logged workout: every set has reps, empty exercises are dropped. */
-function loggedItems(raw, ensure) {
-  return arr(raw).slice(0, MAX_ITEMS).flatMap((item) => {
-    const exerciseId = isObj(item) ? idOf(item.exerciseId) : null;
-    if (!exerciseId) return [];
-    const sets = arr(item.sets).filter(isObj).slice(0, MAX_SETS).flatMap((s) => {
-      const reps = repsOf(s.reps);
-      return reps ? [{ weight: weightOf(s.weight) ?? 0, reps }] : [];
-    });
-    if (!sets.length) return [];
-    ensure(exerciseId);
-    return [{ exerciseId, sets }];
-  });
-}
+/** Sets of a logbook entry: each needs reps, a missing weight means bodyweight. */
+export const loggedSets = (raw) => arr(raw).filter(isObj).slice(0, MAX_SETS).flatMap((s) => {
+  const reps = repsOf(s.reps);
+  return reps ? [{ weight: weightOf(s.weight) ?? 0, reps }] : [];
+});
 
 /**
- * Returns a clean copy of raw app data. Invalid entries are dropped instead of
- * failing the whole load. Throws only when raw is not an object at all.
+ * Returns a clean copy of raw app data (current or version 1). Invalid entries
+ * are dropped instead of failing the whole load. Throws only when raw is not an
+ * object at all.
  */
 export function normalizeData(raw) {
-  if (!isObj(raw)) throw new TypeError('Ungültige Daten');
+  if (!isObj(raw)) throw new TypeError('invalid data');
   const data = emptyData();
-  data.exercises = [];
+  const builtins = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]));
+  const known = new Set(builtins.keys());
 
-  const known = new Set();
   for (const e of arr(raw.exercises)) {
     const id = isObj(e) ? idOf(e.id) : null;
     const name = isObj(e) ? cleanName(e.name) : '';
-    if (!id || !name || known.has(id)) continue;
-    known.add(id);
-    const exercise = { id, name, muscle: MUSCLES.includes(e.muscle) ? e.muscle : 'Sonstiges' };
-    if (e.custom === true) exercise.custom = true;
-    data.exercises.push(exercise);
+    if (!id || !name || data.exercises.some((x) => x.id === id)) continue;
+    const muscle = MUSCLES.includes(e.muscle) ? e.muscle : LEGACY_MUSCLES[e.muscle] ?? 'other';
+    const builtin = builtins.get(id);
+    if (builtin) {
+      // Only keep a built-in the user actually changed, so untouched ones follow the language.
+      if (translations(`ex.${id}`).includes(name) && muscle === builtin.muscle) continue;
+      data.exercises.push({ id, name, muscle });
+    } else {
+      data.exercises.push({ id, name, muscle, custom: true });
+      known.add(id);
+    }
   }
 
-  const builtins = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]));
   const deleted = new Set(arr(raw.deletedBuiltins).filter((id) => builtins.has(id)));
-  for (const [id, builtin] of builtins) {
-    if (known.has(id) || deleted.has(id)) continue;
-    known.add(id);
-    data.exercises.push({ ...builtin });
-  }
 
-  // Plans and workouts must never point at a missing exercise.
+  // Plans and entries must never point at a missing exercise.
   const ensure = (id) => {
+    deleted.delete(id);
     if (known.has(id)) return;
     known.add(id);
-    deleted.delete(id);
-    data.exercises.push(builtins.has(id)
-      ? { ...builtins.get(id) }
-      : { id, name: 'Unbekannte Übung', muscle: 'Sonstiges', custom: true });
+    data.exercises.push({ id, name: '?', muscle: 'other', custom: true });
   };
 
   const routineIds = new Set();
@@ -116,65 +113,49 @@ export function normalizeData(raw) {
     const id = isObj(r) ? idOf(r.id) : null;
     if (!id || routineIds.has(id)) continue;
     routineIds.add(id);
-    data.routines.push({ id, name: cleanName(r.name), items: planItems(r.items, ensure) });
+    const items = arr(r.items).slice(0, MAX_ITEMS).flatMap((item) => {
+      const exerciseId = isObj(item) ? idOf(item.exerciseId) : null;
+      if (!exerciseId) return [];
+      ensure(exerciseId);
+      return [{ exerciseId, sets: planSets(item.sets) }];
+    });
+    data.routines.push({ id, name: cleanName(r.name), items });
   }
 
-  const workoutIds = new Set();
-  for (const w of arr(raw.workouts)) {
-    const id = isObj(w) ? idOf(w.id) : null;
-    const start = isObj(w) ? timeOf(w.start) : null;
-    if (!id || !start || workoutIds.has(id)) continue;
-    const items = loggedItems(w.items, ensure);
-    if (!items.length) continue;
-    workoutIds.add(id);
-    const end = timeOf(w.end);
-    data.workouts.push({
-      id,
-      name: cleanName(w.name) || 'Training',
-      routineId: idOf(w.routineId),
-      start,
-      end: end != null && end >= start ? end : start,
-      items,
+  const logIds = new Set();
+  const addLog = (id, exerciseId, date, rawSets) => {
+    const sets = loggedSets(rawSets);
+    if (!id || !exerciseId || !date || logIds.has(id) || !sets.length) return;
+    logIds.add(id);
+    ensure(exerciseId);
+    data.logs.push({ id, exerciseId, date, sets });
+  };
+  for (const log of arr(raw.logs)) {
+    if (isObj(log)) addLog(idOf(log.id), idOf(log.exerciseId), timeOf(log.date), log.sets);
+  }
+  // Version 1 grouped sets into workouts; each exercise of a workout becomes an entry.
+  for (const workout of arr(raw.workouts)) {
+    if (!isObj(workout)) continue;
+    arr(workout.items).forEach((item, i) => {
+      if (isObj(item)) addLog(idOf(`${workout.id}-${i}`.slice(-64)), idOf(item.exerciseId), timeOf(workout.start), item.sets);
     });
   }
-  data.workouts.sort((a, b) => b.start - a.start);
+  data.logs.sort((a, b) => b.date - a.date);
   data.deletedBuiltins = [...deleted];
 
   const settings = isObj(raw.settings) ? raw.settings : {};
-  if (REST_OPTIONS.includes(settings.restSeconds)) data.settings.restSeconds = settings.restSeconds;
-  if (typeof settings.sound === 'boolean') data.settings.sound = settings.sound;
+  if (settings.lang === 'auto' || LOCALES[settings.lang]) data.settings.lang = settings.lang;
+  if (THEMES.includes(settings.theme)) data.settings.theme = settings.theme;
   data.settings.lastExport = timeOf(settings.lastExport);
   return data;
 }
 
-/** The workout in progress. Returns null when raw is unusable. */
-export function normalizeActive(raw, data) {
-  const start = isObj(raw) ? timeOf(raw.start) : null;
-  if (!start) return null;
-  const known = new Set(data.exercises.map((e) => e.id));
-  const items = arr(raw.items).slice(0, MAX_ITEMS).flatMap((item) => {
-    const exerciseId = isObj(item) ? idOf(item.exerciseId) : null;
-    if (!exerciseId || !known.has(exerciseId)) return [];
-    const sets = arr(item.sets).filter(isObj).slice(0, MAX_SETS).map((s) => {
-      const reps = repsOf(s.reps);
-      return { weight: weightOf(s.weight), reps, done: s.done === true && reps != null, tw: weightOf(s.tw), tr: repsOf(s.tr) };
-    });
-    return [{ exerciseId, sets }];
-  });
-  const rest = isObj(raw.rest) && timeOf(raw.rest.end) && num(raw.rest.total, 3600)
-    ? { end: raw.rest.end, total: raw.rest.total }
-    : null;
-  return { id: idOf(raw.id) ?? uid(), name: cleanName(raw.name), routineId: idOf(raw.routineId), start, items, rest };
-}
-
 /** Backup file envelope. */
 export function toBackup(data, now = Date.now()) {
-  return { app: 'eisen', version: 1, exportedAt: new Date(now).toISOString(), data };
+  return { app: 'eisen', version: 2, exportedAt: new Date(now).toISOString(), data };
 }
 
 export function fromBackup(parsed) {
-  if (!isObj(parsed) || parsed.app !== 'eisen' || !isObj(parsed.data)) {
-    throw new TypeError('Das ist kein Eisen-Backup.');
-  }
+  if (!isObj(parsed) || parsed.app !== 'eisen' || !isObj(parsed.data)) throw new TypeError('not an Eisen backup');
   return normalizeData(parsed.data);
 }

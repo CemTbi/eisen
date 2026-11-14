@@ -1,31 +1,34 @@
 // Offline support: the app shell is cached on install and served from cache.
 // Every request is revalidated in the background, so a new version is picked
 // up on the launch after it was published.
-const CACHE = 'eisen-v1';
+const CACHE = 'eisen-v2';
 
 const ASSETS = [
   './',
   'styles.css',
   'manifest.webmanifest',
-  'icons/icon.svg',
+  'icons/apple-touch-icon.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'icons/apple-touch-icon.png',
+  'icons/icon.svg',
   'js/app.js',
+  'js/appearance.js',
   'js/chart.js',
   'js/components.js',
   'js/editor.js',
+  'js/i18n.js',
   'js/library.js',
   'js/model.js',
   'js/picker.js',
-  'js/rest.js',
   'js/router.js',
   'js/stats.js',
   'js/store.js',
   'js/ui.js',
   'js/util.js',
+  'js/locales/de.js',
+  'js/locales/en.js',
+  'js/views/entry.js',
   'js/views/exercises.js',
-  'js/views/history.js',
   'js/views/home.js',
   'js/views/settings.js',
 ];

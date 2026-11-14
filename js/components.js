@@ -1,9 +1,10 @@
 // Small building blocks shared by the views.
 
+import { t } from './i18n.js';
 import { h, icon } from './util.js';
 
 /** Compact sticky bar for sub-pages: back button, title, optional action. */
-export function topbar({ title = '', onBack, backLabel = 'Zurück', left, right }) {
+export function topbar({ title = '', onBack, backLabel = t('common.back'), left, right }) {
   return h('header', { class: 'topbar' },
     h('div', { class: 'topbar-side' },
       onBack && h('button', { class: 'topbar-back', onclick: onBack }, icon('back', 22), backLabel),
@@ -40,7 +41,7 @@ export function tile(label, value, sub) {
  * Single-choice chip row. With allLabel set, a leading chip selects "no filter"
  * (value null).
  */
-export function chips({ options, value, onChange, allLabel = null, label }) {
+export function chips({ options, value, onChange, allLabel = null, label, labelOf = (option) => option }) {
   const el = h('div', { class: 'chips', role: 'group', 'aria-label': label });
   const entries = allLabel ? [null, ...options] : options;
   const draw = () => el.replaceChildren(...entries.map((option) => h('button', {
@@ -51,7 +52,7 @@ export function chips({ options, value, onChange, allLabel = null, label }) {
       draw();
       onChange(option);
     },
-  }, option ?? allLabel)));
+  }, option == null ? allLabel : labelOf(option))));
   draw();
   return el;
 }

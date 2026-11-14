@@ -1,37 +1,38 @@
-// Settings: rest timer, backup and restore.
+// Settings tab: language, theme, backup and restore.
 
-import { sectionHead, topbar } from '../components.js';
-import { REST_OPTIONS, fromBackup, toBackup } from '../model.js';
-import { back, rerender } from '../router.js';
+import { applyAppearance } from '../appearance.js';
+import { pageHead, sectionHead, segmented } from '../components.js';
+import { LOCALES, t } from '../i18n.js';
+import { THEMES, fromBackup, toBackup } from '../model.js';
+import { rerender } from '../router.js';
 import { replaceData, resetAll, save, state } from '../store.js';
 import { confirm, toast } from '../ui.js';
-import { APP_VERSION, fmtClock, fmtRelative, h, icon, isIOS, isStandalone, plural } from '../util.js';
+import { APP_VERSION, count, fmtRelative, h, icon, isIOS, isStandalone } from '../util.js';
 
 const MAX_BACKUP_BYTES = 20 * 1024 * 1024;
 
+const contents = (data) => ({ entries: count(data.logs.length, 'n.entries'), plans: count(data.routines.length, 'n.plans') });
+
 export function settingsView() {
-  const { settings, workouts, routines } = state.data;
+  const { settings } = state.data;
 
-  const restSelect = h('select', {
+  const restyle = () => {
+    save();
+    applyAppearance();
+    rerender();
+  };
+
+  const language = h('select', {
     class: 'field select',
-    'aria-label': 'Pause nach jedem Satz',
+    'aria-label': t('settings.language'),
     onchange: (event) => {
-      settings.restSeconds = Number(event.target.value);
-      save();
-      rerender();
+      settings.lang = event.target.value;
+      restyle();
     },
-  }, REST_OPTIONS.map((seconds) => h('option', { value: String(seconds) }, seconds ? `${fmtClock(seconds * 1000)} min` : 'Aus')));
-  restSelect.value = String(settings.restSeconds);
-
-  const soundToggle = h('input', {
-    type: 'checkbox',
-    checked: settings.sound,
-    disabled: !settings.restSeconds,
-    onchange: (event) => {
-      settings.sound = event.target.checked;
-      save();
-    },
-  });
+  },
+    h('option', { value: 'auto' }, t('settings.language.auto')),
+    Object.entries(LOCALES).map(([code, entry]) => h('option', { value: code }, entry.strings['lang.name'])));
+  language.value = settings.lang;
 
   const fileInput = h('input', {
     type: 'file',
@@ -45,55 +46,53 @@ export function settingsView() {
 
   const reset = async () => {
     const ok = await confirm({
-      title: 'Alle Daten löschen?',
-      message: `${plural(workouts.length, 'Training', 'Trainings')} und ${plural(routines.length, 'Plan', 'Pläne')} `
-        + 'werden unwiderruflich von diesem Gerät gelöscht.',
-      confirmLabel: 'Alles löschen',
+      title: t('settings.reset.title'),
+      message: t('settings.reset.text', contents(state.data)),
+      confirmLabel: t('settings.reset.confirm'),
       danger: true,
     });
     if (!ok) return;
     resetAll();
-    toast('Alle Daten gelöscht');
+    toast(t('settings.reset.done'));
     rerender({ top: true });
   };
 
+  const action = (iconName, label, onclick, danger = false) => h('button', { class: `row${danger ? ' danger' : ''}`, onclick },
+    icon(iconName, 20), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, label)));
+
   const node = h('div', { class: 'page' },
-    topbar({ title: 'Einstellungen', onBack: () => back('/') }),
+    pageHead(t('tab.settings')),
 
-    sectionHead('Pausentimer'),
+    sectionHead(t('settings.appearance')),
     h('div', { class: 'list' },
       h('label', { class: 'row' },
-        h('span', { class: 'row-main' },
-          h('span', { class: 'row-title' }, 'Pause nach jedem Satz'),
-          h('span', { class: 'meta' }, 'Startet, sobald du einen Satz abhakst')),
-        restSelect),
-      h('label', { class: 'row' },
-        h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, 'Ton am Ende der Pause')),
-        h('span', { class: 'switch' }, soundToggle, h('i')))),
+        h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, t('settings.language'))),
+        language),
+      h('div', { class: 'row' },
+        h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, t('settings.theme'))),
+        segmented({
+          options: THEMES.map((theme) => ({ value: theme, label: t(`theme.${theme}`) })),
+          value: settings.theme,
+          label: t('settings.theme'),
+          onChange: (value) => {
+            settings.theme = value;
+            restyle();
+          },
+        }))),
 
-    sectionHead('Backup'),
+    sectionHead(t('settings.backup')),
     h('p', { class: 'hint' },
-      'Deine Daten liegen nur auf diesem Gerät. Sichere sie ab und zu als Datei, zum Beispiel in iCloud Drive. '
-      + `Letztes Backup: ${settings.lastExport ? fmtRelative(settings.lastExport) : 'noch nie'}.`),
+      t('settings.backup.hint', { when: settings.lastExport ? fmtRelative(settings.lastExport) : t('settings.never') })),
     h('div', { class: 'list' },
-      h('button', { class: 'row', onclick: exportBackup },
-        icon('download', 20), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, 'Backup exportieren'))),
-      h('button', { class: 'row', onclick: () => fileInput.click() },
-        icon('upload', 20), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, 'Backup importieren'))),
-      h('button', { class: 'row danger', onclick: reset },
-        icon('trash', 20), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, 'Alle Daten löschen')))),
+      action('download', t('settings.export'), exportBackup),
+      action('upload', t('settings.import'), () => fileInput.click()),
+      action('trash', t('settings.reset'), reset, true)),
     fileInput,
 
-    isIOS() && !isStandalone() && [
-      sectionHead('Installation'),
-      h('p', { class: 'hint' },
-        'Für Vollbild und Offline-Nutzung: in Safari auf „Teilen“ tippen und „Zum Home-Bildschirm“ wählen. '
-        + 'Die installierte App hat einen eigenen Speicher, übertrage vorhandene Daten per Backup.'),
-    ],
+    isIOS() && !isStandalone() && [sectionHead(t('install.title')), h('p', { class: 'hint' }, t('install.text'))],
 
-    h('p', { class: 'footnote' },
-      `Eisen ${APP_VERSION} · ${plural(workouts.length, 'Training', 'Trainings')} · ${plural(routines.length, 'Plan', 'Pläne')}`));
-  return { node, tab: 'train' };
+    h('p', { class: 'footnote' }, `Eisen ${APP_VERSION} · ${Object.values(contents(state.data)).join(' · ')}`));
+  return { node, tab: 'settings' };
 }
 
 async function exportBackup() {
@@ -103,7 +102,7 @@ async function exportBackup() {
   const file = new File([JSON.stringify(toBackup(state.data, now))], name, { type: 'application/json' });
   try {
     if (isIOS() && navigator.canShare?.({ files: [file] })) {
-      // The share sheet offers "In Dateien sichern", AirDrop and so on.
+      // The share sheet offers "Save to Files", AirDrop and so on.
       await navigator.share({ files: [file] });
     } else {
       const url = URL.createObjectURL(file);
@@ -114,7 +113,7 @@ async function exportBackup() {
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     }
   } catch (error) {
-    if (error?.name !== 'AbortError') toast('Export fehlgeschlagen', { kind: 'error' });
+    if (error?.name !== 'AbortError') toast(t('settings.export.failed'), { kind: 'error' });
     return;
   }
   state.data.settings.lastExport = now;
@@ -126,20 +125,22 @@ async function importBackup(file) {
   if (!file) return;
   let data;
   try {
-    if (file.size > MAX_BACKUP_BYTES) throw new RangeError('Datei zu groß');
+    if (file.size > MAX_BACKUP_BYTES) throw new RangeError('file too large');
     data = fromBackup(JSON.parse(await file.text()));
   } catch {
-    toast('Diese Datei ist kein gültiges Eisen-Backup.', { kind: 'error' });
+    toast(t('settings.import.invalid'), { kind: 'error' });
     return;
   }
   const ok = await confirm({
-    title: 'Backup einspielen?',
-    message: `Das Backup enthält ${plural(data.workouts.length, 'Training', 'Trainings')} und `
-      + `${plural(data.routines.length, 'Plan', 'Pläne')}. Die aktuellen Daten auf diesem Gerät werden ersetzt.`,
-    confirmLabel: 'Daten ersetzen',
+    title: t('settings.import.title'),
+    message: t('settings.import.text', contents(data)),
+    confirmLabel: t('settings.import.confirm'),
     danger: true,
   });
   if (!ok) return;
-  if (replaceData(data)) toast('Backup eingespielt');
+  // Language and theme belong to this device, not to the backup.
+  data.settings.lang = state.data.settings.lang;
+  data.settings.theme = state.data.settings.theme;
+  if (replaceData(data)) toast(t('settings.import.done'));
   rerender({ top: true });
 }
