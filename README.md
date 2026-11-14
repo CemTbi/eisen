@@ -18,9 +18,7 @@ Server und kein Konto, und läuft nach der Installation offline. Alle Daten blei
 
 ## Auf dem iPhone installieren
 
-Die App muss über HTTPS erreichbar sein (zum Beispiel GitHub Pages). Dann:
-
-1. Die Adresse in **Safari** öffnen.
+1. **https://cemtbi.github.io/eisen/** in **Safari** öffnen.
 2. **Teilen** antippen, dann **Zum Home-Bildschirm**.
 3. Die App ab jetzt über das Icon starten.
 
@@ -54,6 +52,15 @@ npm run icons                    # PNG-Icons aus icons/icon.svg neu erzeugen
 | `sw.js` | Service Worker für den Offline-Betrieb |
 
 Neue Dateien unter `js/` oder `icons/` müssen in die Liste in `sw.js`; ein Unit-Test prüft das.
+
+## Veröffentlichen
+
+GitHub Pages liefert den Branch `main` direkt aus: Ein `git push` veröffentlicht die neue Version
+nach etwa einer Minute. Danach lässt sich die Live-Version prüfen:
+
+```sh
+BASE_URL=https://cemtbi.github.io/eisen/ npm run test:e2e
+```
 
 Der Service Worker liefert die App aus dem Cache und aktualisiert ihn im Hintergrund. Eine neue
 Version ist deshalb beim zweiten Start nach der Veröffentlichung sichtbar.

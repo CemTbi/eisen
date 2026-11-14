@@ -1,6 +1,7 @@
 // End-to-end test: drives the real app in a phone-sized browser.
 // Usage: npm run test:e2e            (WebKit if installed, else Edge/Chrome)
 //        BROWSER=chromium npm run test:e2e
+//        BASE_URL=https://example.org/eisen/ npm run test:e2e   (test a deployed copy)
 // Screenshots of every screen land in test/screenshots/.
 
 import assert from 'node:assert/strict';
@@ -73,8 +74,9 @@ function seedData(now) {
 }
 
 const { name: engine, browser } = await launch();
-const server = createStaticServer().listen(0);
-const base = `http://localhost:${server.address().port}/`;
+// BASE_URL runs the same checks against a deployed copy instead of a local server.
+const server = process.env.BASE_URL ? null : createStaticServer().listen(0);
+const base = process.env.BASE_URL ?? `http://localhost:${server.address().port}/`;
 await mkdir(SHOTS, { recursive: true });
 
 const problems = [];
@@ -117,7 +119,7 @@ try {
     console.log(`  ok  ${title}`);
   };
 
-  console.log(`Eisen e2e (${engine})`);
+  console.log(`Eisen e2e (${engine}) against ${base}`);
 
   await step('starts empty', async () => {
     await page.goto(base);
@@ -501,6 +503,6 @@ try {
   if (problems.length) console.error(`Browser problems:\n${problems.join('\n')}`);
 } finally {
   await browser.close();
-  server.close();
+  server?.close();
 }
 process.exit(failed ? 1 : 0);
