@@ -1,7 +1,7 @@
 // Offline support: the app shell is cached on install and served from cache.
 // Every request is revalidated in the background, so a new version is picked
 // up on the launch after it was published.
-const CACHE = 'eisen-v5';
+const CACHE = 'eisen-v6';
 
 const ASSETS = [
   './',
