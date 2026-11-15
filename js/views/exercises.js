@@ -105,7 +105,7 @@ function muscleCard(exercise) {
   if (!muscles.primary.length) return null;
   const all = muscleNames([...muscles.primary, ...muscles.secondary]);
   return h('section', { class: 'card muscle-card' },
-    muscleFigure(muscles, t('figure.aria', { muscles: all })),
+    muscleFigure(muscles, t('figure.aria', { muscles: all }), { sculpted: true }),
     h('div', { class: 'muscle-legend' },
       h('div', null,
         h('span', { class: 'legend-key primary' }, t('figure.primary')),

@@ -73,3 +73,9 @@ BASE_URL=https://cemtbi.github.io/eisen/ npm run test:e2e
 
 Der Service Worker liefert die App aus dem Cache und aktualisiert ihn im Hintergrund. Eine neue
 Version ist deshalb beim zweiten Start nach der Veröffentlichung sichtbar.
+
+## Quellen
+
+Die Körperzeichnung hinter den Übungsbildern (`js/body.js`) stammt aus
+[react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter)
+(MIT, © 2022 Elabbassi Hicham). `tools/make-body.mjs` erzeugt die Datei neu.

@@ -209,11 +209,11 @@ try {
     await exerciseRow(BENCH).click();
     await see(heading(BENCH));
     await see('Höchstes Gewicht');
-    // The picture: chest is the main muscle (two shapes), triceps and shoulders support (six).
+    // The picture: chest is the main muscle; triceps and shoulders support, seen from the front and from behind.
     const figure = page.getByRole('img', { name: 'Trainierte Muskeln: Brust, Trizeps, Schultern' });
     await figure.waitFor();
-    assert.equal(await figure.locator('.primary').count(), 2);
-    assert.equal(await figure.locator('.secondary').count(), 6);
+    assert.equal(await figure.locator('.primary').count(), 1);
+    assert.equal(await figure.locator('.secondary').count(), 4);
     await see('Hauptmuskeln');
     await page.locator('.chart svg').waitFor();
     assert.equal(await page.locator('.chart-dot:not(.chart-focus)').count(), 1);
