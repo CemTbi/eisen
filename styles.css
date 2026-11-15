@@ -490,17 +490,18 @@ input[type="date"].field { min-width: 0; text-align: left; }
 /* ---- exercise picture ---------------------------------------------------------------- */
 
 .fig { display: block; }
-.fig-part { fill: var(--surface-3); }
+.fig-body { fill: var(--surface-3); }
+.fig-part { fill: #46527a; fill: color-mix(in srgb, var(--text-2) 30%, var(--surface-3)); }
 .fig-part.primary { fill: var(--accent); }
-.fig-part.secondary { fill: var(--accent); fill-opacity: 0.4; }
-.row .fig { flex: none; width: 46px; height: 46px; }
-.muscle-card { display: flex; align-items: center; gap: 16px; }
-.muscle-card .fig { flex: none; width: 150px; height: 150px; }
-.muscle-legend { display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
-.muscle-legend > div { display: flex; flex-direction: column; gap: 2px; }
+.fig-part.secondary { fill: var(--accent); fill: color-mix(in srgb, var(--accent) 50%, var(--surface-3)); }
+.row .fig { flex: none; width: 52px; height: 60px; }
+.muscle-card { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.muscle-card .fig { width: 100%; max-width: 250px; height: auto; aspect-ratio: 192 / 220; }
+.muscle-legend { display: flex; align-self: stretch; gap: 20px; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+.muscle-legend > div { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .legend-key { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
 .legend-key::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
-.legend-key.secondary::before { opacity: 0.4; }
+.legend-key.secondary::before { opacity: 0.5; }
 
 /* ---- chart ------------------------------------------------------------------------------ */
 
