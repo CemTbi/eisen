@@ -203,18 +203,11 @@ try {
   await step('the logbook shows what was lifted on which exercise', async () => {
     await tab('Logbuch').click();
     await see('Deine Übungen');
-    assert.equal(await page.locator('.row .fig').count(), await page.locator('.row').count(), 'every exercise has a picture');
     await see(exerciseRow(BENCH).getByText('62,5 kg × 7'));
     await see(exerciseRow(BENCH).getByText('Bestwert 62,5 kg'));
     await exerciseRow(BENCH).click();
     await see(heading(BENCH));
     await see('Höchstes Gewicht');
-    // The picture: chest is the main muscle; triceps and shoulders support, seen from the front and from behind.
-    const figure = page.getByRole('img', { name: 'Trainierte Muskeln: Brust, Trizeps, Schultern' });
-    await figure.waitFor();
-    assert.equal(await figure.locator('.primary').count(), 1);
-    assert.equal(await figure.locator('.secondary').count(), 4);
-    await see('Hauptmuskeln');
     await page.locator('.chart svg').waitFor();
     assert.equal(await page.locator('.chart-dot:not(.chart-focus)').count(), 1);
     assert.equal(await entries().count(), 1);
@@ -309,7 +302,7 @@ try {
     await dialog.getByRole('button', { name: 'Schultern' }).click();
     await dialog.getByRole('button', { name: 'Speichern' }).click();
     await see(heading('Landmine Press'));
-    await page.getByRole('img', { name: 'Trainierte Muskeln: Schultern' }).waitFor(); // custom exercises show their group
+    await see('Schultern');
     await button('Optionen').click();
     await button('Löschen').click();
     await button('Übung löschen').click();

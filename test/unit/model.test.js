@@ -35,16 +35,6 @@ test('every built-in exercise and muscle group is named in every language', () =
   }
 });
 
-test('every built-in exercise names muscles the picture can draw', () => {
-  const drawable = new Set(Object.keys(LOCALES.de.strings).filter((key) => key.startsWith('m.')).map((key) => key.slice(2)));
-  assert.equal(drawable.size, 15);
-  for (const exercise of BUILTIN_EXERCISES) {
-    assert.ok(exercise.primary.length > 0, `${exercise.id} has a main muscle`);
-    for (const muscle of [...exercise.primary, ...exercise.secondary]) assert.ok(drawable.has(muscle), `${exercise.id}: ${muscle}`);
-    assert.equal(new Set([...exercise.primary, ...exercise.secondary]).size, exercise.primary.length + exercise.secondary.length, exercise.id);
-  }
-});
-
 test('t fills placeholders, falls back, and setLang switches', () => {
   setLang('en');
   assert.equal(t('time.daysAgo', { n: 3 }), '3 days ago');

@@ -1,6 +1,6 @@
 {
   "name": "eisen",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Schlankes Trainingslogbuch als installierbare Web-App",
   "private": true,
   "type": "module",
@@ -11,7 +11,6 @@
     "icons": "node tools/make-icons.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.50.0",
-    "svgpath": "^2.6.0"
+    "playwright": "^1.50.0"
   }
 }

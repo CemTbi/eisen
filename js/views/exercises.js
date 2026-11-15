@@ -2,7 +2,6 @@
 // the page of a single exercise with its records, progress chart and entries.
 
 import { lineChart } from '../chart.js';
-import { muscleFigure, musclesOf } from '../figure.js';
 import { chips, emptyState, pageHead, sectionHead, segmented, tile, topbar } from '../components.js';
 import { t } from '../i18n.js';
 import { MUSCLES } from '../library.js';
@@ -24,7 +23,6 @@ export function exercisesView() {
   const list = h('div', { class: 'ex-list' });
 
   const row = (exercise, stats) => h('button', { class: 'row', onclick: () => navigate(`/exercise/${exercise.id}`) },
-    exerciseThumb(exercise),
     h('span', { class: 'row-main' },
       h('span', { class: 'row-title' }, exercise.name),
       h('span', { class: 'meta' },
@@ -90,31 +88,6 @@ export function exercisesView() {
   return { node, tab: 'log' };
 }
 
-const muscleNames = (keys) => keys.map((key) => t(`m.${key}`)).join(', ');
-
-/** Small picture for list rows. The row's text already names the exercise, so it is decorative. */
-export function exerciseThumb(exercise) {
-  const figure = muscleFigure(musclesOf(exercise), '');
-  figure.setAttribute('aria-hidden', 'true');
-  return figure;
-}
-
-/** The picture with the names of the muscles next to it. */
-function muscleCard(exercise) {
-  const muscles = musclesOf(exercise);
-  if (!muscles.primary.length) return null;
-  const all = muscleNames([...muscles.primary, ...muscles.secondary]);
-  return h('section', { class: 'card muscle-card' },
-    muscleFigure(muscles, t('figure.aria', { muscles: all }), { sculpted: true }),
-    h('div', { class: 'muscle-legend' },
-      h('div', null,
-        h('span', { class: 'legend-key primary' }, t('figure.primary')),
-        h('strong', null, muscleNames(muscles.primary))),
-      muscles.secondary.length > 0 && h('div', null,
-        h('span', { class: 'legend-key secondary' }, t('figure.secondary')),
-        h('span', null, muscleNames(muscles.secondary)))));
-}
-
 // ---- one exercise ------------------------------------------------------------------------
 
 const METRICS = {
@@ -170,7 +143,6 @@ export function exerciseView(id) {
       h('h1', null, exercise.name),
       h('p', { class: 'meta' }, muscleName(exercise.muscle))));
 
-  node.append(muscleCard(exercise) ?? '');
   if (!summary) {
     node.append(emptyState({
       iconName: 'book', title: t('detail.empty.title'), text: t('detail.empty.text'), action: addButton(),
