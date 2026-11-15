@@ -78,4 +78,6 @@ Version ist deshalb beim zweiten Start nach der Veröffentlichung sichtbar.
 
 Die Körperzeichnung hinter den Übungsbildern (`js/body.js`) stammt aus
 [react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter)
-(MIT, © 2022 Elabbassi Hicham). `tools/make-body.mjs` erzeugt die Datei neu.
+(MIT, © 2022 Elabbassi Hicham). `tools/make-body.mjs` erzeugt die Datei neu: Das Skript biegt die
+neutrale Zeichnung in die Statuenpose (Kontrapost) und zeichnet das Gesicht. Pose und Gesicht
+stehen oben im Skript.

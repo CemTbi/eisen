@@ -494,11 +494,14 @@ input[type="date"].field { min-width: 0; text-align: left; }
 .fig-body { fill: var(--marble-groove); }
 .fig-part { fill: var(--marble); }
 .fig-hair { fill: #cfcbc3; }
+.fig-face-shade { fill: #6f6a66; fill-opacity: 0.42; }
+.fig-face-line, .fig-face-curl { fill: none; stroke: #7d7873; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .fig-part.primary { fill: var(--accent); }
 .fig-part.secondary { fill: #a9c8f5; fill: color-mix(in srgb, var(--accent) 45%, var(--marble)); }
-.row .fig { flex: none; width: 62px; height: 58px; }
+.row .fig { flex: none; width: 58px; height: 58px; }
+.fig-face-curl { stroke: #a8a39c; }
 .muscle-card { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.muscle-card .fig { width: 100%; max-width: 320px; height: auto; aspect-ratio: 1368 / 1275; }
+.muscle-card .fig { width: 100%; max-width: 320px; height: auto; aspect-ratio: 1260 / 1276; }
 .muscle-legend { display: flex; align-self: stretch; gap: 20px; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
 .muscle-legend > div { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .legend-key { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }

@@ -47,14 +47,17 @@ const relief = () => node('filter', { id: RELIEF, x: '0', y: '0', width: '100%',
   node('feComposite', { in: 'light', in2: 'SourceGraphic', operator: 'arithmetic', k1: '0.72', k2: '0', k3: '0.34', k4: '0', result: 'lit' }),
   node('feComposite', { in: 'lit', in2: 'SourceAlpha', operator: 'in' }));
 
-function view({ outline, parts }, level, sculpted) {
+function view({ outline, parts, face = [] }, level, sculpted) {
   const muscles = node('g', sculpted ? { filter: `url(#${RELIEF})` } : {});
   for (const [part, d] of parts) {
     const muscle = MUSCLE_OF[part];
     const cls = part === 'hair' ? 'fig-hair' : `fig-part ${muscle ? level(muscle) : ''}`.trim();
     muscles.append(node('path', { d, class: cls }));
   }
-  return node('g', {}, node('path', { d: outline, class: 'fig-body' }), muscles);
+  const group = node('g', {}, node('path', { d: outline, class: 'fig-body' }), muscles);
+  // The face is too fine for the small picture.
+  if (sculpted) for (const [kind, d] of face) group.append(node('path', { d, class: `fig-face-${kind}` }));
+  return group;
 }
 
 /**
@@ -63,7 +66,7 @@ function view({ outline, parts }, level, sculpted) {
  */
 export function muscleFigure({ primary = [], secondary = [] }, label, { sculpted = false } = {}) {
   const level = (muscle) => (primary.includes(muscle) ? 'primary' : secondary.includes(muscle) ? 'secondary' : '');
-  const svg = node('svg', { class: 'fig', viewBox: '40 86 1368 1275', role: 'img', 'aria-label': label });
+  const svg = node('svg', { class: 'fig', viewBox: '94 86 1260 1276', role: 'img', 'aria-label': label });
   if (sculpted) svg.append(node('defs', {}, relief()));
   svg.append(view(BODY.front, level, sculpted), view(BODY.back, level, sculpted));
   return svg;
